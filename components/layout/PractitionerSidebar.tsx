@@ -22,17 +22,17 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/patients", label: "Patients", icon: Users },
-  { href: "/calendar", label: "Calendar", icon: Calendar },
-  { href: "/toolkit", label: "Toolkit", icon: Briefcase },
-  { href: "/documents", label: "Documents", icon: FileText },
-  { href: "/education", label: "Education", icon: BookOpen },
-  { href: "/payments", label: "Payments", icon: CreditCard },
-  { href: "/messages", label: "Messages", icon: MessageSquare },
-  { href: "/analytics", label: "Analytics", icon: BarChart2 },
-  { href: "/notifications", label: "Notifications", icon: Bell },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/practitioner/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/practitioner/patients", label: "Patients", icon: Users },
+  { href: "/practitioner/calendar", label: "Calendar", icon: Calendar },
+  { href: "/practitioner/toolkit", label: "Toolkit", icon: Briefcase },
+  { href: "/practitioner/documents", label: "Documents", icon: FileText },
+  { href: "/practitioner/education", label: "Education", icon: BookOpen },
+  { href: "/practitioner/payments", label: "Payments", icon: CreditCard },
+  { href: "/practitioner/messages", label: "Messages", icon: MessageSquare },
+  { href: "/practitioner/analytics", label: "Analytics", icon: BarChart2 },
+  { href: "/practitioner/notifications", label: "Notifications", icon: Bell },
+  { href: "/practitioner/settings", label: "Settings", icon: Settings },
 ];
 
 interface PractitionerSidebarProps {
