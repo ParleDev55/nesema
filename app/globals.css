@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bark: #2E2620;
+    --sage: #4E7A5F;
+    --sage-l: #6B9E7A;
+    --sage-p: #EBF2EE;
+    --sage-m: #C3D9CB;
+    --clay: #B5704A;
+    --clay-p: #F5EDE8;
+    --sky: #4A7FA0;
+    --sky-p: #E8F2F8;
+    --amber: #C27D30;
+    --amb-p: #F9F1E6;
+    --lav: #7B6FA8;
+    --lav-p: #EEECf6;
+    --bg: #F6F3EE;
+    --surf: #FDFCFA;
+    --sb-bg: #2A2118;
+    --bdr: #E6E0D8;
+    --t1: #1E1A16;
+    --t2: #5C5248;
+    --t3: #9C9087;
+    --t4: #BFB8B0;
+
+    /* shadcn/ui variables */
+    --background: #F6F3EE;
+    --foreground: #1E1A16;
+    --card: #FDFCFA;
+    --card-foreground: #1E1A16;
+    --popover: #FDFCFA;
+    --popover-foreground: #1E1A16;
+    --primary: #4E7A5F;
+    --primary-foreground: #FDFCFA;
+    --secondary: #EBF2EE;
+    --secondary-foreground: #2E2620;
+    --muted: #F6F3EE;
+    --muted-foreground: #9C9087;
+    --accent: #EBF2EE;
+    --accent-foreground: #2E2620;
+    --destructive: #ef4444;
+    --destructive-foreground: #FDFCFA;
+    --border: #E6E0D8;
+    --input: #E6E0D8;
+    --ring: #4E7A5F;
+    --radius: 0.75rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply antialiased;
+  }
+
+  body {
+    @apply bg-nesema-bg text-nesema-t1 font-sans;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .font-display {
+    font-family: var(--font-cormorant), Georgia, serif;
+  }
+}
