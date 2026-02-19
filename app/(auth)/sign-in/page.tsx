@@ -43,9 +43,9 @@ export default function SignInPage() {
     const profile = profileData as Pick<Profile, "role"> | null;
 
     if (profile?.role === "practitioner") {
-      router.push("/dashboard");
+      router.push("/practitioner/dashboard");
     } else {
-      router.push("/dashboard");
+      router.push("/patient/dashboard");
     }
   }
 

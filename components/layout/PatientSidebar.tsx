@@ -21,16 +21,16 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/plan", label: "My Plan", icon: ClipboardList },
-  { href: "/check-in", label: "Check-in", icon: CheckCircle2 },
-  { href: "/progress", label: "Progress", icon: TrendingUp },
-  { href: "/appointments", label: "Appointments", icon: CalendarDays },
-  { href: "/vault", label: "Results Vault", icon: Lock },
-  { href: "/learn", label: "Learn", icon: BookOpen },
-  { href: "/team", label: "Care Team", icon: HeartHandshake },
-  { href: "/messages", label: "Messages", icon: MessageSquare },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/patient/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/patient/plan", label: "My Plan", icon: ClipboardList },
+  { href: "/patient/check-in", label: "Check-in", icon: CheckCircle2 },
+  { href: "/patient/progress", label: "Progress", icon: TrendingUp },
+  { href: "/patient/appointments", label: "Appointments", icon: CalendarDays },
+  { href: "/patient/vault", label: "Results Vault", icon: Lock },
+  { href: "/patient/learn", label: "Learn", icon: BookOpen },
+  { href: "/patient/team", label: "Care Team", icon: HeartHandshake },
+  { href: "/patient/messages", label: "Messages", icon: MessageSquare },
+  { href: "/patient/settings", label: "Settings", icon: Settings },
 ];
 
 interface PatientSidebarProps {

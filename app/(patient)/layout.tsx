@@ -27,7 +27,7 @@ export default async function PatientLayout({
   const profile = data as Profile | null;
 
   if (profile?.role !== "patient") {
-    redirect("/dashboard");
+    redirect("/practitioner/dashboard");
   }
 
   const userName =
