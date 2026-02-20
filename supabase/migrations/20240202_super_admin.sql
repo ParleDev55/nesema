@@ -65,11 +65,23 @@ create policy "Service role can read platform settings"
   on public.platform_settings for select using (true);
 
 -- ── 5. Admin bypass RLS policies ──────────────────────────────────────────────
--- profiles
-create policy "Admins have full access"
-  on public.profiles for all using (
-    exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+-- IMPORTANT: the profiles check is done via a SECURITY DEFINER function to
+-- avoid recursive RLS (the profiles policy cannot subquery profiles itself).
+create or replace function public.is_admin()
+  returns boolean
+  language sql
+  security definer
+  stable
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role = 'admin'
   );
+$$;
+
+-- profiles — uses the non-recursive helper
+create policy "Admins have full access"
+  on public.profiles for all using (public.is_admin());
 
 -- practitioners
 create policy "Admins have full access"
