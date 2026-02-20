@@ -83,20 +83,31 @@ export default async function PatientDashboardPage() {
   if (!user) redirect("/sign-in");
 
   // Profile
-  const { data: profile } = await supabase
+  const { data: profile } = (await supabase
     .from("profiles")
     .select("first_name, last_name")
     .eq("id", user.id)
-    .single();
+    .single()) as {
+    data: { first_name: string | null; last_name: string | null } | null;
+    error: unknown;
+  };
 
   // Patient record
-  const { data: patient } = await supabase
+  const { data: patient } = (await supabase
     .from("patients")
     .select(
       "id, practitioner_id, programme_start, programme_weeks"
     )
     .eq("profile_id", user.id)
-    .single();
+    .single()) as {
+    data: {
+      id: string;
+      practitioner_id: string | null;
+      programme_start: string | null;
+      programme_weeks: number | null;
+    } | null;
+    error: unknown;
+  };
 
   if (!patient) redirect("/onboarding/patient");
 
