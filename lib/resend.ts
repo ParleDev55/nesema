@@ -1,6 +1,9 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy getter — avoids instantiating Resend at module load time during Next.js build
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY);
+}
 
 const FROM = "Nesema <hello@nesema.com>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://nesema.com";
@@ -72,7 +75,7 @@ export async function sendPractitionerWelcome({
     <p style="margin:0 0 20px;font-size:14px;color:#5C5248;line-height:1.6;">In the meantime, you can set up your availability, build out your profile, and explore the toolkit.</p>
     ${ctaButton("Go to your dashboard", `${APP_URL}/practitioner/dashboard`)}
   `;
-  return resend.emails.send({ from: FROM, to, subject: `Welcome to Nesema, ${firstName}`, html: emailTemplate(content) });
+  return getResend().emails.send({ from: FROM, to, subject: `Welcome to Nesema, ${firstName}`, html: emailTemplate(content) });
 }
 
 // ─── Welcome — Patient ──────────────────────────────────────────────────────
@@ -92,7 +95,7 @@ export async function sendPatientWelcome({
     <p style="margin:0 0 20px;font-size:15px;color:#5C5248;line-height:1.6;">Your account is ready. ${practitionerName} is looking forward to working with you on your health journey.</p>
     ${ctaButton("Book your first session", `${APP_URL}/book/${bookingSlug}`)}
   `;
-  return resend.emails.send({ from: FROM, to, subject: `You're all set, ${firstName}`, html: emailTemplate(content) });
+  return getResend().emails.send({ from: FROM, to, subject: `You're all set, ${firstName}`, html: emailTemplate(content) });
 }
 
 // ─── Booking confirmation — Patient ─────────────────────────────────────────
@@ -131,7 +134,7 @@ export async function sendBookingConfirmationPatient({
     ${ctaButton("Add to Google Calendar", googleCalUrl)}
     <p style="margin:16px 0 0;font-size:13px;color:#9C9087;">Your session link will be available in the app.</p>
   `;
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: `Your session with ${practitionerName} is confirmed`,
@@ -166,7 +169,7 @@ export async function sendBookingNotificationPractitioner({
     </table>
     ${ctaButton("View calendar", `${APP_URL}/practitioner/calendar`)}
   `;
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: `New booking from ${patientName}`,
@@ -204,7 +207,7 @@ export async function sendAppointmentReminder({
     </table>
     ${ctaButton("Join session", joinUrl)}
   `;
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: `Your session tomorrow at ${appointmentTime}`,
@@ -231,7 +234,7 @@ export async function sendCheckinStreakAlert({
     <p style="margin:0 0 20px;font-size:15px;color:#5C5248;line-height:1.6;">Hi ${practitionerName}, ${patientName} hasn't submitted a daily check-in in the last ${daysMissed} days. You may want to reach out.</p>
     ${ctaButton("View patient profile", `${APP_URL}/practitioner/patients/${patientId}`)}
   `;
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: `${patientName} hasn't checked in for ${daysMissed} days`,
@@ -252,7 +255,7 @@ export async function sendPractitionerVerified({
     <p style="margin:0 0 20px;font-size:15px;color:#5C5248;line-height:1.6;">Great news — your Nesema profile has been reviewed and verified. You're now live on the platform and can start accepting bookings.</p>
     ${ctaButton("Go to your dashboard", `${APP_URL}/practitioner/dashboard`)}
   `;
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: "Your Nesema profile is now verified",
@@ -279,7 +282,7 @@ export async function sendPractitionerRejected({
     <p style="margin:0 0 20px;font-size:14px;color:#5C5248;line-height:1.6;">If you believe this is an error or would like to provide additional information, please reply to this email.</p>
     ${ctaButton("Contact support", `mailto:support@nesema.com`)}
   `;
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: "An update on your Nesema application",
@@ -303,7 +306,7 @@ export async function sendAccountSuspended({
     <p style="margin:0 0 20px;font-size:14px;color:#5C5248;line-height:1.6;">If you believe this is a mistake or wish to discuss this decision, please get in touch.</p>
     ${ctaButton("Contact support", `mailto:support@nesema.com`)}
   `;
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: "Your Nesema account has been suspended",
@@ -329,7 +332,7 @@ export async function sendAccountReinstated({
       role === "practitioner" ? `${APP_URL}/practitioner/dashboard` : `${APP_URL}/patient/dashboard`
     )}
   `;
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: "Your Nesema account has been reinstated",
