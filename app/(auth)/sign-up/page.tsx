@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +11,6 @@ import { cn } from "@/lib/utils";
 type Role = "practitioner" | "patient";
 
 export default function SignUpPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("patient");
@@ -39,11 +37,10 @@ export default function SignUpPage() {
       return;
     }
 
-    router.push(
+    window.location.href =
       role === "practitioner"
         ? "/onboarding/practitioner"
-        : "/onboarding/patient"
-    );
+        : "/onboarding/patient";
   }
 
   return (

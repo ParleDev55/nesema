@@ -434,7 +434,7 @@ export default function PractitionerOnboardingPage() {
     }
     setSaving(false); setStep(5);
   }
-  async function goLive() { setSaving(true); await upsert({ is_live: true }); setSaving(false); router.push("/practitioner/dashboard"); }
+  async function goLive() { setSaving(true); await upsert({ is_live: true }); setSaving(false); window.location.href = "/practitioner/dashboard"; }
 
   if (loading) return (
     <div className="min-h-screen bg-[#F6F3EE] flex items-center justify-center">
