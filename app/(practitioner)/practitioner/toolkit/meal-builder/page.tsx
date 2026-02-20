@@ -1,61 +1,34 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Search, Plus, X, ChevronDown } from "lucide-react";
+import { Search, Plus, X, ChevronDown, Heart, Info, ExternalLink, AlertTriangle } from "lucide-react";
+import type { FoodItem, FoodCategory } from "@/app/api/foods/search/route";
 
-// ─── Food library ────────────────────────────────────────────────────────────
-
-type FoodCategory = "protein" | "carbs" | "veg" | "fats" | "dairy-free";
-
-type Food = {
-  id: string;
-  name: string;
-  category: FoodCategory;
-  kcal: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-};
-
-const FOODS: Food[] = [
-  { id: "f01", name: "Chicken Breast", category: "protein", kcal: 165, protein: 31, carbs: 0, fat: 3.6 },
-  { id: "f02", name: "Salmon Fillet", category: "protein", kcal: 208, protein: 20, carbs: 0, fat: 13 },
-  { id: "f03", name: "Eggs (whole)", category: "protein", kcal: 143, protein: 13, carbs: 1, fat: 10 },
-  { id: "f04", name: "Turkey Mince", category: "protein", kcal: 170, protein: 29, carbs: 0, fat: 6 },
-  { id: "f05", name: "Tofu (firm)", category: "protein", kcal: 76, protein: 8, carbs: 2, fat: 4 },
-  { id: "f06", name: "Brown Rice (cooked)", category: "carbs", kcal: 112, protein: 2.6, carbs: 23, fat: 0.9 },
-  { id: "f07", name: "Sweet Potato", category: "carbs", kcal: 86, protein: 1.6, carbs: 20, fat: 0.1 },
-  { id: "f08", name: "Oats (rolled)", category: "carbs", kcal: 389, protein: 17, carbs: 66, fat: 7 },
-  { id: "f09", name: "Quinoa (cooked)", category: "carbs", kcal: 120, protein: 4.4, carbs: 22, fat: 2 },
-  { id: "f10", name: "Broccoli", category: "veg", kcal: 34, protein: 2.8, carbs: 7, fat: 0.4 },
-  { id: "f11", name: "Spinach", category: "veg", kcal: 23, protein: 2.9, carbs: 3.6, fat: 0.4 },
-  { id: "f12", name: "Courgette", category: "veg", kcal: 17, protein: 1.2, carbs: 3, fat: 0.3 },
-  { id: "f13", name: "Kale", category: "veg", kcal: 49, protein: 4.3, carbs: 9, fat: 0.9 },
-  { id: "f14", name: "Blueberries", category: "veg", kcal: 57, protein: 0.7, carbs: 14, fat: 0.3 },
-  { id: "f15", name: "Avocado", category: "fats", kcal: 160, protein: 2, carbs: 9, fat: 15 },
-  { id: "f16", name: "Olive Oil", category: "fats", kcal: 884, protein: 0, carbs: 0, fat: 100 },
-  { id: "f17", name: "Almonds", category: "fats", kcal: 579, protein: 21, carbs: 22, fat: 50 },
-  { id: "f18", name: "Walnuts", category: "fats", kcal: 654, protein: 15, carbs: 14, fat: 65 },
-  { id: "f19", name: "Coconut Milk", category: "dairy-free", kcal: 230, protein: 2.3, carbs: 6, fat: 24 },
-  { id: "f20", name: "Oat Milk", category: "dairy-free", kcal: 46, protein: 1, carbs: 8, fat: 1.5 },
-];
+// ─── Category config ──────────────────────────────────────────────────────────
 
 const CAT_OPTIONS = [
   { key: "all", label: "All" },
   { key: "protein", label: "Protein" },
   { key: "carbs", label: "Carbs" },
   { key: "veg", label: "Veg" },
+  { key: "fruit", label: "Fruit" },
   { key: "fats", label: "Fats" },
   { key: "dairy-free", label: "Dairy-free" },
+  { key: "plant-based", label: "Plant-based" },
+  { key: "other", label: "Other" },
+  { key: "favourites", label: "♥ Saved" },
 ];
 
 const CAT_DOT: Record<string, string> = {
   protein: "bg-[#4A7FA0]",
   carbs: "bg-[#C27D30]",
   veg: "bg-[#4E7A5F]",
+  fruit: "bg-[#E07A5F]",
   fats: "bg-[#7B6FA8]",
   "dairy-free": "bg-[#B5704A]",
+  "plant-based": "bg-[#5C9E78]",
+  other: "bg-[#9C9087]",
 };
 
 // ─── Plan types ──────────────────────────────────────────────────────────────
@@ -72,6 +45,11 @@ type MealItem = {
   protein: number;
   carbs: number;
   fat: number;
+  // Per 100g — stored so we can recalculate when grams change without needing the original food object
+  kcalPer100: number;
+  proteinPer100: number;
+  carbsPer100: number;
+  fatPer100: number;
 };
 
 type DayPlan = Record<MealSection, MealItem[]>;
@@ -99,13 +77,23 @@ function emptyWeek(): WeekPlan {
     fri: emptyDay(), sat: emptyDay(), sun: emptyDay(),
   };
 }
-function calcItem(food: Food, grams: number) {
+function calcMacros(food: FoodItem, grams: number) {
   return {
     grams,
     kcal: Math.round((food.kcal * grams) / 100),
     protein: Math.round((food.protein * grams) / 100 * 10) / 10,
     carbs: Math.round((food.carbs * grams) / 100 * 10) / 10,
     fat: Math.round((food.fat * grams) / 100 * 10) / 10,
+  };
+}
+function recalcMacros(item: MealItem, grams: number) {
+  const g = Math.max(1, grams);
+  return {
+    grams: g,
+    kcal: Math.round((item.kcalPer100 * g) / 100),
+    protein: Math.round((item.proteinPer100 * g) / 100 * 10) / 10,
+    carbs: Math.round((item.carbsPer100 * g) / 100 * 10) / 10,
+    fat: Math.round((item.fatPer100 * g) / 100 * 10) / 10,
   };
 }
 function dayTotals(day: DayPlan) {
@@ -116,27 +104,175 @@ function dayTotals(day: DayPlan) {
   );
 }
 
+// ─── LocalStorage keys ────────────────────────────────────────────────────────
+
+const LS_RECENT = "nesema_recent_foods";
+const LS_FAVS = "nesema_favourite_foods";
+
+// ─── Compliance check ─────────────────────────────────────────────────────────
+
+interface PatientFlags {
+  gluten_free?: boolean;
+  dairy_free?: boolean;
+  nut_free?: boolean;
+  low_fodmap?: boolean;
+}
+
+function checkFoodCompliance(food: FoodItem, flags: PatientFlags): string | null {
+  const allergens = (food.allergens ?? []).map((a) => a.toLowerCase());
+  if (flags.gluten_free && allergens.some((a) => /gluten|wheat|rye|barley|spelt/.test(a))) {
+    return `${food.name} may contain gluten — patient is on a gluten-free protocol.`;
+  }
+  if (flags.dairy_free && allergens.some((a) => /milk|dairy|lactose|casein/.test(a))) {
+    return `${food.name} may contain dairy — patient is on a dairy-free protocol.`;
+  }
+  if (flags.nut_free && allergens.some((a) => /nut|peanut|almond|cashew|walnut|hazel/.test(a))) {
+    return `${food.name} may contain nuts — patient has a nut-free requirement.`;
+  }
+  if (flags.low_fodmap) {
+    const name = food.name.toLowerCase();
+    if (/garlic|onion|apple|pear|watermelon|mango|wheat|rye|chickpea|lentil|kidney bean/.test(name)) {
+      return `${food.name} may be high FODMAP — patient is on a low-FODMAP protocol.`;
+    }
+  }
+  return null;
+}
+
 type Patient = { id: string; name: string };
 type MobilePanel = "library" | "canvas" | "totals";
+
+// ─── Skeleton loader ─────────────────────────────────────────────────────────
+
+function FoodSkeleton() {
+  return (
+    <div className="space-y-0.5 animate-pulse">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-2.5 p-2.5">
+          <div className="w-2 h-2 rounded-full bg-[#E6E0D8] shrink-0" />
+          <div className="flex-1 space-y-1.5">
+            <div className="h-2.5 bg-[#E6E0D8] rounded w-3/4" />
+            <div className="h-2 bg-[#E6E0D8] rounded w-1/2" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Food detail popover ──────────────────────────────────────────────────────
+
+function FoodDetailPopover({ food, onClose }: { food: FoodItem; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/30" />
+      <div
+        className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-1 pr-2">
+            <h3 className="font-medium text-sm text-[#1E1A16] leading-tight">{food.name}</h3>
+            <p className="text-[11px] text-[#9C9087] mt-0.5 capitalize">{food.category.replace("-", " ")}</p>
+          </div>
+          <button onClick={onClose} className="text-[#9C9087] hover:text-[#1E1A16] transition-colors shrink-0">
+            <X size={16} />
+          </button>
+        </div>
+
+        {food.image && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={food.image} alt={food.name} className="w-full h-28 object-contain rounded-xl mb-3 bg-[#F6F3EE]" />
+        )}
+
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-[#9C9087] mb-2">Per 100g</div>
+        <div className="grid grid-cols-4 gap-2 mb-4">
+          {[
+            { label: "Calories", value: `${food.kcal}`, unit: "kcal" },
+            { label: "Protein", value: `${food.protein}`, unit: "g" },
+            { label: "Carbs", value: `${food.carbs}`, unit: "g" },
+            { label: "Fat", value: `${food.fat}`, unit: "g" },
+          ].map(({ label, value, unit }) => (
+            <div key={label} className="bg-[#F6F3EE] rounded-lg p-2 text-center">
+              <p className="font-semibold text-sm text-[#1E1A16]">{value}</p>
+              <p className="text-[9px] text-[#9C9087]">{unit}</p>
+              <p className="text-[9px] text-[#9C9087]">{label}</p>
+            </div>
+          ))}
+        </div>
+
+        {food.allergens && food.allergens.length > 0 && (
+          <div className="mb-3">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9C9087] mb-1.5">Allergens</p>
+            <div className="flex flex-wrap gap-1">
+              {food.allergens.map((a) => (
+                <span key={a} className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full capitalize">
+                  {a.replace(/-/g, " ")}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {food.offUrl && (
+          <a
+            href={food.offUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-[11px] text-[#4E7A5F] hover:underline"
+          >
+            <ExternalLink size={11} />
+            View on Open Food Facts
+          </a>
+        )}
+
+        {food.fallback && (
+          <p className="text-[10px] text-[#9C9087] mt-2 italic">From offline food library</p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function MealBuilderPage() {
   const supabase = createClient();
 
+  // ── Search + library state
   const [search, setSearch] = useState("");
   const [cat, setCat] = useState("all");
+  const [foods, setFoods] = useState<FoodItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchFallback, setSearchFallback] = useState(false);
+  const [recentFoods, setRecentFoods] = useState<FoodItem[]>([]);
+  const [favouriteIds, setFavouriteIds] = useState<Set<string>>(new Set());
+  const [favouriteFoods, setFavouriteFoods] = useState<FoodItem[]>([]);
+  const [detailFood, setDetailFood] = useState<FoodItem | null>(null);
+
+  // ── Plan state
   const [activeDay, setActiveDay] = useState<DayKey>("mon");
   const [activeMeal, setActiveMeal] = useState<MealSection>("breakfast");
   const [plan, setPlan] = useState<WeekPlan>(emptyWeek());
+
+  // ── Protocol / assign state
   const [protocolName, setProtocolName] = useState("");
   const [weekNumber, setWeekNumber] = useState("1");
   const [notes, setNotes] = useState("");
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState("");
+  const [patientFlags, setPatientFlags] = useState<PatientFlags | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("canvas");
+
+  // ── Compliance state
+  const [complianceWarning, setComplianceWarning] = useState<string | null>(null);
+  const [dismissedWarning, setDismissedWarning] = useState(false);
+
+  // ── Debounce ref
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ─── Load patients ─────────────────────────────────────────────────────────
 
   useEffect(() => {
     (async () => {
@@ -166,30 +302,145 @@ export default function MealBuilderPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filteredFoods = useMemo(
-    () => FOODS.filter((f) =>
-      (cat === "all" || f.category === cat) &&
-      f.name.toLowerCase().includes(search.toLowerCase())
-    ),
-    [search, cat]
-  );
+  // ─── Load localStorage (recent + favourites) ───────────────────────────────
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_RECENT);
+      if (raw) setRecentFoods(JSON.parse(raw) as FoodItem[]);
+    } catch { /* ignore */ }
+    try {
+      const raw = localStorage.getItem(LS_FAVS);
+      if (raw) {
+        const favs = JSON.parse(raw) as FoodItem[];
+        setFavouriteFoods(favs);
+        setFavouriteIds(new Set(favs.map((f) => f.id)));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // ─── Load patient dietary flags when patient changes ──────────────────────
+
+  useEffect(() => {
+    if (!selectedPatient) { setPatientFlags(null); return; }
+    (async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase as any)
+          .from("patients")
+          .select("health_background")
+          .eq("id", selectedPatient)
+          .single();
+        if (data?.health_background && typeof data.health_background === "object") {
+          const hb = data.health_background as Record<string, unknown>;
+          setPatientFlags({
+            gluten_free: !!(hb.gluten_free ?? hb.glutenFree),
+            dairy_free: !!(hb.dairy_free ?? hb.dairyFree),
+            nut_free: !!(hb.nut_free ?? hb.nutFree),
+            low_fodmap: !!(hb.low_fodmap ?? hb.lowFodmap),
+          });
+        }
+      } catch { /* no dietary data — compliance check skipped */ }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPatient]);
+
+  // ─── Debounced food search ─────────────────────────────────────────────────
+
+  const runSearch = useCallback(async (query: string) => {
+    setLoading(true);
+    setSearchFallback(false);
+    try {
+      const q = query.trim() || "chicken breast";
+      const res = await fetch(`/api/foods/search?q=${encodeURIComponent(q)}`);
+      if (!res.ok) throw new Error("search failed");
+      const data = await res.json() as { foods: FoodItem[]; fallback: boolean };
+      setFoods(data.foods);
+      setSearchFallback(data.fallback);
+    } catch {
+      setSearchFallback(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const q = search.trim();
+    // Don't fire if search is 1 char (wait for more)
+    if (q.length === 1) return;
+
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    const delay = q.length === 0 ? 0 : 400;
+    searchTimer.current = setTimeout(() => runSearch(q), delay);
+
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, [search, runSearch]);
+
+  // ─── Helpers ───────────────────────────────────────────────────────────────
 
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   }
 
-  function addFood(food: Food) {
+  function addToRecent(food: FoodItem) {
+    setRecentFoods((prev) => {
+      const next = [food, ...prev.filter((f) => f.id !== food.id)].slice(0, 10);
+      try { localStorage.setItem(LS_RECENT, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }
+
+  function toggleFavourite(food: FoodItem) {
+    setFavouriteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(food.id)) {
+        next.delete(food.id);
+        setFavouriteFoods((f) => {
+          const updated = f.filter((x) => x.id !== food.id);
+          try { localStorage.setItem(LS_FAVS, JSON.stringify(updated)); } catch { /* ignore */ }
+          return updated;
+        });
+      } else {
+        next.add(food.id);
+        setFavouriteFoods((f) => {
+          const updated = [food, ...f.filter((x) => x.id !== food.id)];
+          try { localStorage.setItem(LS_FAVS, JSON.stringify(updated)); } catch { /* ignore */ }
+          return updated;
+        });
+      }
+      return next;
+    });
+  }
+
+  function addFood(food: FoodItem) {
     const item: MealItem = {
       id: `${food.id}-${Date.now()}`,
       foodId: food.id,
       name: food.name,
-      ...calcItem(food, 100),
+      ...calcMacros(food, 100),
+      kcalPer100: food.kcal,
+      proteinPer100: food.protein,
+      carbsPer100: food.carbs,
+      fatPer100: food.fat,
     };
     setPlan((prev) => ({
       ...prev,
       [activeDay]: { ...prev[activeDay], [activeMeal]: [...prev[activeDay][activeMeal], item] },
     }));
+    addToRecent(food);
+
+    // Compliance check
+    if (patientFlags) {
+      const warning = checkFoodCompliance(food, patientFlags);
+      if (warning) {
+        setComplianceWarning(warning);
+        setDismissedWarning(false);
+      }
+    }
+
     setMobilePanel("canvas");
   }
 
@@ -200,8 +451,7 @@ export default function MealBuilderPage() {
         ...prev[activeDay],
         [activeMeal]: prev[activeDay][activeMeal].map((item) => {
           if (item.id !== itemId) return item;
-          const food = FOODS.find((f) => f.id === item.foodId)!;
-          return { ...item, ...calcItem(food, Math.max(1, grams)) };
+          return { ...item, ...recalcMacros(item, grams) };
         }),
       },
     }));
@@ -245,6 +495,20 @@ export default function MealBuilderPage() {
     }
   }
 
+  // ─── Derived display lists ─────────────────────────────────────────────────
+
+  const displayFoods: FoodItem[] = (() => {
+    if (cat === "favourites") {
+      return favouriteFoods.filter((f) =>
+        !search.trim() || f.name.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+    const filtered = foods.filter((f) => cat === "all" || f.category === (cat as FoodCategory));
+    return filtered;
+  })();
+
+  const showRecent = search.trim().length === 0 && cat !== "favourites" && recentFoods.length > 0;
+
   const totals = dayTotals(plan[activeDay]);
   const kcalTarget = 1700;
   const kcalPct = Math.min(100, Math.round((totals.kcal / kcalTarget) * 100));
@@ -253,7 +517,8 @@ export default function MealBuilderPage() {
 
   const LibraryPanel = (
     <div className="flex flex-col h-full">
-      <div className="p-4 border-b border-[#E6E0D8] bg-[#FDFCFA]">
+      {/* Header + search */}
+      <div className="p-4 border-b border-[#E6E0D8] bg-[#FDFCFA] shrink-0">
         <h2 className="font-medium text-sm text-[#1E1A16] mb-3">Food Library</h2>
         <div className="relative mb-3">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9C9087]" />
@@ -263,6 +528,14 @@ export default function MealBuilderPage() {
             placeholder="Search foods…"
             className="w-full pl-8 pr-3 py-2 text-xs rounded-lg border border-[#E6E0D8] bg-white focus:outline-none focus:ring-2 focus:ring-[#4E7A5F]/20"
           />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9C9087] hover:text-[#1E1A16]"
+            >
+              <X size={12} />
+            </button>
+          )}
         </div>
         <div className="flex flex-wrap gap-1">
           {CAT_OPTIONS.map((c) => (
@@ -277,26 +550,83 @@ export default function MealBuilderPage() {
             </button>
           ))}
         </div>
-      </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-0.5 bg-[#FDFCFA]">
-        {filteredFoods.length === 0 && (
-          <p className="text-center text-[#9C9087] text-xs py-8">No foods match</p>
+        {searchFallback && (
+          <p className="mt-2 text-[10px] text-amber-600 flex items-center gap-1">
+            <AlertTriangle size={10} />
+            Showing offline library — live search unavailable
+          </p>
         )}
-        {filteredFoods.map((food) => (
-          <button
-            key={food.id}
-            onClick={() => addFood(food)}
-            className="w-full flex items-center gap-2.5 p-2.5 rounded-xl hover:bg-[#EBF2EE] text-left transition-colors group"
-          >
-            <div className={`w-2 h-2 rounded-full shrink-0 ${CAT_DOT[food.category]}`} />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-[#1E1A16] truncate">{food.name}</p>
-              <p className="text-[10px] text-[#9C9087]">
-                {food.kcal} kcal · P {food.protein}g · C {food.carbs}g · F {food.fat}g
-              </p>
-            </div>
-            <Plus size={13} className="text-[#4E7A5F] opacity-0 group-hover:opacity-100 shrink-0 transition-opacity" />
+      </div>
+
+      {/* Compliance warning */}
+      {complianceWarning && !dismissedWarning && (
+        <div className="mx-3 mt-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 shrink-0">
+          <AlertTriangle size={13} className="text-amber-600 mt-0.5 shrink-0" />
+          <p className="text-[11px] text-amber-800 flex-1">{complianceWarning}</p>
+          <button onClick={() => setDismissedWarning(true)} className="text-amber-500 hover:text-amber-700 shrink-0">
+            <X size={12} />
           </button>
+        </div>
+      )}
+
+      {/* Food list */}
+      <div className="flex-1 overflow-y-auto p-2 bg-[#FDFCFA]">
+        {loading && <FoodSkeleton />}
+
+        {!loading && cat === "favourites" && favouriteFoods.length === 0 && (
+          <div className="text-center py-10 px-4">
+            <Heart size={24} className="mx-auto text-[#E6E0D8] mb-2" />
+            <p className="text-xs text-[#9C9087]">No saved foods yet</p>
+            <p className="text-[10px] text-[#9C9087] mt-1">Click the heart icon on any food to save it</p>
+          </div>
+        )}
+
+        {/* Recent foods (shown when search is empty, not on favourites tab) */}
+        {!loading && showRecent && (
+          <div className="mb-2">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9C9087] px-2.5 py-1.5">Recent</p>
+            {recentFoods
+              .filter((f) => cat === "all" || f.category === (cat as FoodCategory))
+              .map((food) => (
+                <FoodRow
+                  key={`recent-${food.id}`}
+                  food={food}
+                  isFav={favouriteIds.has(food.id)}
+                  onAdd={() => addFood(food)}
+                  onToggleFav={() => toggleFavourite(food)}
+                  onDetail={() => setDetailFood(food)}
+                />
+              ))}
+            {displayFoods.length > 0 && (
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#9C9087] px-2.5 py-1.5 mt-1">Suggested</p>
+            )}
+          </div>
+        )}
+
+        {!loading && !showRecent && cat !== "favourites" && displayFoods.length === 0 && search.trim().length >= 2 && (
+          <p className="text-center text-[#9C9087] text-xs py-8">No foods found for &ldquo;{search}&rdquo;</p>
+        )}
+
+        {!loading && cat !== "favourites" && displayFoods.map((food) => (
+          <FoodRow
+            key={food.id}
+            food={food}
+            isFav={favouriteIds.has(food.id)}
+            onAdd={() => addFood(food)}
+            onToggleFav={() => toggleFavourite(food)}
+            onDetail={() => setDetailFood(food)}
+          />
+        ))}
+
+        {!loading && cat === "favourites" && displayFoods.map((food) => (
+          <FoodRow
+            key={food.id}
+            food={food}
+            isFav={true}
+            onAdd={() => addFood(food)}
+            onToggleFav={() => toggleFavourite(food)}
+            onDetail={() => setDetailFood(food)}
+          />
         ))}
       </div>
     </div>
@@ -592,6 +922,67 @@ export default function MealBuilderPage() {
           {toast}
         </div>
       )}
+
+      {/* Food detail popover */}
+      {detailFood && (
+        <FoodDetailPopover food={detailFood} onClose={() => setDetailFood(null)} />
+      )}
+    </div>
+  );
+}
+
+// ─── FoodRow component ────────────────────────────────────────────────────────
+
+function FoodRow({
+  food,
+  isFav,
+  onAdd,
+  onToggleFav,
+  onDetail,
+}: {
+  food: FoodItem;
+  isFav: boolean;
+  onAdd: () => void;
+  onToggleFav: () => void;
+  onDetail: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 px-1 py-0.5 rounded-xl hover:bg-[#EBF2EE] group transition-colors">
+      <button
+        onClick={onAdd}
+        className="flex items-center gap-2.5 flex-1 min-w-0 p-1.5 text-left"
+      >
+        <div className={`w-2 h-2 rounded-full shrink-0 ${CAT_DOT[food.category] ?? "bg-[#9C9087]"}`} />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-[#1E1A16] truncate">{food.name}</p>
+          <p className="text-[10px] text-[#9C9087]">
+            {food.kcal} kcal · P {food.protein}g · C {food.carbs}g · F {food.fat}g
+          </p>
+        </div>
+      </button>
+      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={(e) => { e.stopPropagation(); onDetail(); }}
+          className="p-1 text-[#9C9087] hover:text-[#4E7A5F] transition-colors"
+          title="View details"
+        >
+          <Info size={12} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleFav(); }}
+          className={`p-1 transition-colors ${isFav ? "text-rose-400" : "text-[#9C9087] hover:text-rose-400"}`}
+          title={isFav ? "Remove from saved" : "Save food"}
+        >
+          <Heart size={12} fill={isFav ? "currentColor" : "none"} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onAdd(); }}
+          className="p-1 text-[#4E7A5F] hover:text-[#2E5C45] transition-colors"
+          title="Add to meal"
+        >
+          <Plus size={13} />
+        </button>
+      </div>
     </div>
   );
 }
