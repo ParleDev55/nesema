@@ -93,11 +93,14 @@ export default function CheckInPage() {
         return;
       }
 
-      const { data: patient } = await supabase
+      const { data: patient } = (await supabase
         .from("patients")
         .select("id, practitioner_id")
         .eq("profile_id", user.id)
-        .single();
+        .single()) as {
+        data: { id: string; practitioner_id: string | null } | null;
+        error: unknown;
+      };
 
       if (!patient) {
         router.push("/onboarding/patient");
@@ -109,13 +112,13 @@ export default function CheckInPage() {
       const todayStr = new Date().toISOString().slice(0, 10);
 
       // Check today's check-in
-      const { data: todayCheckIn } = await supabase
+      const { data: todayCheckIn } = (await supabase
         .from("check_ins")
         .select("id")
         .eq("patient_id", patient.id)
         .gte("checked_in_at", todayStr + "T00:00:00")
         .lte("checked_in_at", todayStr + "T23:59:59")
-        .maybeSingle();
+        .maybeSingle()) as { data: { id: string } | null; error: unknown };
 
       if (todayCheckIn) {
         setAlreadyCheckedIn(true);
@@ -124,13 +127,16 @@ export default function CheckInPage() {
 
       // Load supplements from latest care plan
       if (patient.practitioner_id) {
-        const { data: cp } = await supabase
+        const { data: cp } = (await supabase
           .from("care_plans")
           .select("supplements")
           .eq("patient_id", patient.id)
           .order("week_number", { ascending: false })
           .limit(1)
-          .maybeSingle();
+          .maybeSingle()) as {
+          data: { supplements: unknown } | null;
+          error: unknown;
+        };
 
         if (cp?.supplements && Array.isArray(cp.supplements)) {
           const names = (cp.supplements as Array<{ name?: string } | string>)
