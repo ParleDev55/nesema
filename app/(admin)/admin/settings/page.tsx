@@ -52,6 +52,10 @@ export default async function AdminSettingsPage() {
         updated_by: null,
       }}
       adminId={user?.id ?? null}
+      ghlApiKeySet={!!process.env.GHL_API_KEY}
+      ghlLocationIdSet={!!process.env.GHL_LOCATION_ID}
+      ghlPipelineId={process.env.GHL_PIPELINE_ID ?? ""}
+      ghlPracPipelineId={process.env.GHL_PRACTITIONER_PIPELINE_ID ?? ""}
     />
   );
 }

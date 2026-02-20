@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb, requireAdmin, auditLog } from "@/lib/admin-api";
 import { sendPractitionerVerified } from "@/lib/resend";
+import { syncPractitionerVerified } from "@/lib/ghl-sync";
 
 export async function POST(
   _req: Request,
@@ -52,6 +53,9 @@ export async function POST(
       firstName: profile.first_name ?? "there",
     }).catch(() => {});
   }
+
+  // GHL sync — never block the response
+  try { await syncPractitionerVerified(id); } catch {}
 
   return NextResponse.json({ ok: true });
 }

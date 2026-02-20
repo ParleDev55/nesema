@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { GhlSettingsTab } from "@/components/admin/GhlSettingsTab";
 
 interface PlatformSettings {
   id: string;
@@ -40,13 +41,24 @@ function Toggle({
   );
 }
 
+type Tab = "platform" | "ghl";
+
 export function SettingsClient({
   settings,
   adminId,
+  ghlApiKeySet,
+  ghlLocationIdSet,
+  ghlPipelineId,
+  ghlPracPipelineId,
 }: {
   settings: PlatformSettings;
   adminId: string | null;
+  ghlApiKeySet: boolean;
+  ghlLocationIdSet: boolean;
+  ghlPipelineId: string;
+  ghlPracPipelineId: string;
 }) {
+  const [activeTab, setActiveTab] = useState<Tab>("platform");
   const [maintenanceMode, setMaintenanceMode] = useState(settings.maintenance_mode);
   const [allowPracSignup, setAllowPracSignup] = useState(settings.allow_practitioner_signup);
   const [allowPatientSignup, setAllowPatientSignup] = useState(settings.allow_patient_signup);
@@ -116,6 +128,11 @@ export function SettingsClient({
     },
   ];
 
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "platform", label: "Platform settings" },
+    { id: "ghl", label: "GHL Integration" },
+  ];
+
   return (
     <div className="p-6 md:p-8">
       {toast && (
@@ -127,67 +144,96 @@ export function SettingsClient({
         </div>
       )}
 
-      <h1 className="font-serif text-3xl text-nesema-t1 mb-2">Platform settings</h1>
-      <p className="text-sm text-nesema-t3 mb-8">
-        These settings affect the entire platform and take effect immediately.
-      </p>
+      <h1 className="font-serif text-3xl text-nesema-t1 mb-6">Settings</h1>
 
-      <div className="max-w-2xl space-y-4">
-        {toggleItems.map((item) => (
-          <div
-            key={item.id}
-            className={`bg-nesema-surf rounded-2xl border p-5 flex items-start justify-between gap-4 ${
-              item.danger && item.value
-                ? "border-amber-300 bg-amber-50/30"
-                : "border-nesema-bdr"
+      {/* Tab nav */}
+      <div className="flex gap-1 mb-8 border-b border-nesema-bdr">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors -mb-px ${
+              activeTab === tab.id
+                ? "border border-b-white border-nesema-bdr text-nesema-t1 bg-white"
+                : "text-nesema-t3 hover:text-nesema-t2"
             }`}
           >
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <p className="font-medium text-nesema-t1 text-sm">{item.label}</p>
-                {item.danger && item.value && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">
-                    Active
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-nesema-t3 mt-1 leading-relaxed">{item.description}</p>
-            </div>
-            <Toggle
-              checked={item.value}
-              onChange={item.onChange}
-              disabled={loading}
-            />
-          </div>
-        ))}
-
-        <div className="flex items-center gap-3 pt-2">
-          <button
-            onClick={save}
-            disabled={loading}
-            className="px-6 py-2.5 rounded-full text-sm font-medium text-white disabled:opacity-50"
-            style={{ backgroundColor: "#C27D30" }}
-          >
-            {loading ? "Saving…" : "Save settings"}
+            {tab.label}
           </button>
-          {saved && (
-            <span className="text-xs text-green-600 font-medium">Saved successfully</span>
+        ))}
+      </div>
+
+      {/* Platform settings tab */}
+      {activeTab === "platform" && (
+        <div className="max-w-2xl space-y-4">
+          {toggleItems.map((item) => (
+            <div
+              key={item.id}
+              className={`bg-nesema-surf rounded-2xl border p-5 flex items-start justify-between gap-4 ${
+                item.danger && item.value
+                  ? "border-amber-300 bg-amber-50/30"
+                  : "border-nesema-bdr"
+              }`}
+            >
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-nesema-t1 text-sm">{item.label}</p>
+                  {item.danger && item.value && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">
+                      Active
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-nesema-t3 mt-1 leading-relaxed">{item.description}</p>
+              </div>
+              <Toggle
+                checked={item.value}
+                onChange={item.onChange}
+                disabled={loading}
+              />
+            </div>
+          ))}
+
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              onClick={save}
+              disabled={loading}
+              className="px-6 py-2.5 rounded-full text-sm font-medium text-white disabled:opacity-50"
+              style={{ backgroundColor: "#C27D30" }}
+            >
+              {loading ? "Saving…" : "Save settings"}
+            </button>
+            {saved && (
+              <span className="text-xs text-green-600 font-medium">Saved successfully</span>
+            )}
+          </div>
+
+          {settings.updated_at && settings.id && (
+            <p className="text-xs text-nesema-t4 pt-2">
+              Last updated{" "}
+              {new Date(settings.updated_at).toLocaleString("en-GB", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
           )}
         </div>
+      )}
 
-        {settings.updated_at && settings.id && (
-          <p className="text-xs text-nesema-t4 pt-2">
-            Last updated{" "}
-            {new Date(settings.updated_at).toLocaleString("en-GB", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </p>
-        )}
-      </div>
+      {/* GHL Integration tab */}
+      {activeTab === "ghl" && (
+        <div className="max-w-3xl">
+          <GhlSettingsTab
+            apiKeySet={ghlApiKeySet}
+            locationIdSet={ghlLocationIdSet}
+            pipelineId={ghlPipelineId}
+            pracPipelineId={ghlPracPipelineId}
+          />
+        </div>
+      )}
     </div>
   );
 }

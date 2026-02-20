@@ -188,6 +188,12 @@ export default function PractitionerSessionPage() {
         .from("appointments")
         .update({ status: "completed", practitioner_notes: notes })
         .eq("id", appt.id);
+      // GHL sync — fire and forget, never block navigation
+      fetch("/api/appointments/completed-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentId: appt.id }),
+      }).catch(() => {});
     }
     setPhase("done");
     setTimeout(() => router.push("/practitioner/dashboard"), 1500);

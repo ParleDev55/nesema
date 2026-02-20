@@ -152,22 +152,35 @@ export function BookingClient({
     setSubmitting(true);
 
     const supabase = createClient();
-    const { error: insertError } = await supabase.from("appointments").insert({
-      practitioner_id: practitioner.id,
-      patient_id: practitioner.id, // placeholder — replaced by real patient lookup in production
-      appointment_type: apptType,
-      status: "scheduled",
-      scheduled_at: selectedSlot,
-      duration_mins: sessionLength,
-      location_type: "virtual",
-      patient_notes: notes || null,
-      amount_pence: fee ?? null,
-    });
+    const { data: newAppt, error: insertError } = await supabase
+      .from("appointments")
+      .insert({
+        practitioner_id: practitioner.id,
+        patient_id: practitioner.id, // placeholder — replaced by real patient lookup in production
+        appointment_type: apptType,
+        status: "scheduled",
+        scheduled_at: selectedSlot,
+        duration_mins: sessionLength,
+        location_type: "virtual",
+        patient_notes: notes || null,
+        amount_pence: fee ?? null,
+      })
+      .select("id")
+      .single();
 
     if (insertError) {
       setError("Something went wrong. Please try again.");
       setSubmitting(false);
       return;
+    }
+
+    // GHL first-booking sync — fire and forget
+    if (newAppt?.id) {
+      fetch("/api/appointments/first-booking-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentId: newAppt.id }),
+      }).catch(() => {});
     }
 
     setStep("success");

@@ -176,6 +176,129 @@ For each screen, reference the prototype screen ID and describe what you want. C
 
 ---
 
+## GHL Integration — Go High Level CRM
+
+Nesema uses Go High Level (GHL) to handle marketing, nurture sequences, SMS messaging, and pipeline tracking. Resend continues to handle transactional emails. They run alongside each other.
+
+---
+
+### Step 1 — Get your GHL API key
+
+1. Log in to your GHL sub-account at **app.gohighlevel.com**
+2. Go to **Settings** → **API Keys**
+3. Click **Create API Key**, give it a name like `Nesema`
+4. Copy the key — you'll use it as `GHL_API_KEY`
+
+---
+
+### Step 2 — Find your Location ID
+
+1. In GHL, go to **Settings** → **Business Profile**
+2. Your **Location ID** is shown near the top of the page (a UUID-style string)
+3. Copy it — you'll use it as `GHL_LOCATION_ID`
+
+---
+
+### Step 3 — Create two pipelines
+
+GHL → **CRM** → **Pipelines** → **Add Pipeline**
+
+**Patient pipeline** — name it `Nesema Patients`. Add these stages **in this exact order**:
+1. In Queue
+2. Matched
+3. First Session Booked
+4. Active Patient
+5. At Risk
+6. Churned
+
+**Practitioner pipeline** — name it `Nesema Practitioners`. Add these stages:
+1. Pending Verification
+2. Verified & Live
+3. Rejected
+4. Suspended
+
+After saving each pipeline, click into it and look at the URL — it will contain the pipeline ID. Example:
+```
+https://app.gohighlevel.com/.../pipeline/abc123def456
+                                                    ^-- this is your pipeline ID
+```
+Copy the patient pipeline ID → `GHL_PIPELINE_ID`
+Copy the practitioner pipeline ID → `GHL_PRACTITIONER_PIPELINE_ID`
+
+---
+
+### Step 4 — Set up the re-engagement workflow (optional)
+
+1. GHL → **Automation** → **Workflows** → **Create Workflow**
+2. Name it `Nesema — Patient Re-engagement`
+3. Add a trigger: **Contact Tag Added**, tag = `at-risk`
+4. Add steps: SMS / email sequence to bring the patient back
+5. Click the workflow and look at the URL for the workflow ID
+6. Copy it → `GHL_REENGAGEMENT_WORKFLOW_ID`
+
+If you skip this step, at-risk tagging still works — re-engagement SMS are just not sent.
+
+---
+
+### Step 5 — Add environment variables to Vercel
+
+In Vercel: **project → Settings → Environment Variables**, add:
+
+```
+GHL_API_KEY                      = [your GHL private API key]
+GHL_LOCATION_ID                  = [your GHL location/sub-account ID]
+GHL_PIPELINE_ID                  = [patient pipeline ID]
+GHL_PRACTITIONER_PIPELINE_ID     = [practitioner pipeline ID]
+GHL_REENGAGEMENT_WORKFLOW_ID     = [workflow ID — optional]
+CRON_SECRET                      = [a long random string you invent, e.g. openssl rand -hex 32]
+```
+
+Also add `CRON_SECRET` if it's not already set — this protects your cron endpoints.
+
+---
+
+### Step 6 — Run the database migration
+
+In Supabase → **SQL Editor**, run the contents of:
+```
+supabase/migrations/20240221_ghl_integration.sql
+```
+
+This adds `ghl_contact_id` to profiles, `ghl_opportunity_id` to practitioners and patients, and creates the `ghl_sync_log` table.
+
+---
+
+### Step 7 — Test the connection
+
+1. Deploy to Vercel (merge the pull request)
+2. Log in as admin at your Nesema URL
+3. Go to **Admin → Settings → GHL Integration**
+4. Check the "Connection status" card — credentials should show as set
+5. Click **Test connection** — should show green "Connected"
+
+If you see an error, double-check your API key and Location ID in Vercel environment variables.
+
+---
+
+### How it works once set up
+
+| App event | What GHL does |
+|---|---|
+| Practitioner completes onboarding | Contact created, added to Practitioner pipeline at "Pending Verification" |
+| Admin verifies practitioner | Contact tagged "verified", moved to "Verified & Live" |
+| Admin rejects practitioner | Contact tagged "rejected", opportunity status set to "lost" |
+| Patient completes onboarding | Contact created, added to Patient pipeline at "In Queue" |
+| Admin matches patient to practitioner | Tagged "matched", moved to "Matched", SMS sent |
+| Patient books first appointment | Moved to "First Session Booked" |
+| Session completed | Moved to "Active Patient", monetary value updated |
+| Patient misses 7 days of check-ins | Tagged "at-risk", moved to "At Risk", re-engagement SMS triggered |
+| Patient account deleted | Tagged "churned", opportunity status set to "lost" |
+| Appointment 24h away | SMS reminder sent to both patient and practitioner |
+
+All GHL failures are logged in **Admin → Settings → GHL Integration → Sync log**. Failed events can be retried individually.
+
+---
+
 ## Phase 4 — Set up your domain
 
 1. Buy your domain (e.g. `nesema.com`) from Namecheap or Google Domains (~£10/year)
