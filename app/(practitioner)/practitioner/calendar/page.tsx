@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import {
@@ -644,7 +644,7 @@ function MonthView({
 function WeekView({
   weekDays,
   today,
-  selectedDay,
+  selectedDay: _selectedDay,
   apptsByDay,
   onSelectDay,
   onPrev,

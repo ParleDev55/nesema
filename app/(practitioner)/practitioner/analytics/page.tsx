@@ -275,7 +275,6 @@ export default function AnalyticsPage() {
 
   const avgCheckInRate = useMemo(() => {
     if (patients.length === 0) return 0;
-    const days = Math.round((end.getTime() - start.getTime()) / 86400000);
     const rates = patients.map((pt) => {
       const ptCheckIns = periodCheckIns.filter((c) => c.patient_id === pt.id);
       const ptStart = pt.programme_start ? Math.max(new Date(pt.programme_start).getTime(), start.getTime()) : start.getTime();
@@ -514,7 +513,7 @@ export default function AnalyticsPage() {
           ) : (
             <>
               <div className="flex items-end gap-1 h-24 mb-2">
-                {barData.map(({ label, revenue }, i) => {
+                {barData.map(({ revenue }, i) => {
                   const h = Math.max(4, Math.round((revenue / maxRevenue) * 88));
                   return (
                     <div key={i} className="flex-1 min-w-0 flex flex-col items-center">
