@@ -60,6 +60,7 @@ export interface Database {
           cancellation_hours: number;
           is_live: boolean;
           stripe_account_id: string | null;
+          notification_preferences: Json | null;
           created_at: string;
         };
         Insert: {
@@ -81,6 +82,7 @@ export interface Database {
           cancellation_hours?: number;
           is_live?: boolean;
           stripe_account_id?: string | null;
+          notification_preferences?: Json | null;
           created_at?: string;
         };
         Update: {
@@ -102,6 +104,7 @@ export interface Database {
           cancellation_hours?: number;
           is_live?: boolean;
           stripe_account_id?: string | null;
+          notification_preferences?: Json | null;
           created_at?: string;
         };
         Relationships: [];
@@ -155,6 +158,7 @@ export interface Database {
           programme_start: string | null;
           programme_end: string | null;
           programme_weeks: number;
+          notification_preferences: Json | null;
           created_at: string;
         };
         Insert: {
@@ -178,6 +182,7 @@ export interface Database {
           programme_start?: string | null;
           programme_end?: string | null;
           programme_weeks?: number;
+          notification_preferences?: Json | null;
           created_at?: string;
         };
         Update: {
@@ -201,6 +206,7 @@ export interface Database {
           programme_start?: string | null;
           programme_end?: string | null;
           programme_weeks?: number;
+          notification_preferences?: Json | null;
           created_at?: string;
         };
         Relationships: [];
@@ -220,6 +226,7 @@ export interface Database {
           practitioner_notes: string | null;
           amount_pence: number | null;
           stripe_payment_id: string | null;
+          reminder_sent: boolean;
           created_at: string;
         };
         Insert: {
@@ -236,6 +243,7 @@ export interface Database {
           practitioner_notes?: string | null;
           amount_pence?: number | null;
           stripe_payment_id?: string | null;
+          reminder_sent?: boolean;
           created_at?: string;
         };
         Update: {
@@ -252,6 +260,7 @@ export interface Database {
           practitioner_notes?: string | null;
           amount_pence?: number | null;
           stripe_payment_id?: string | null;
+          reminder_sent?: boolean;
           created_at?: string;
         };
         Relationships: [];

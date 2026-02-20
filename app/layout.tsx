@@ -17,9 +17,12 @@ const instrumentSans = Instrument_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Nesema — Health, felt whole.",
+  title: {
+    default: "Nesema — Health, felt whole.",
+    template: "%s | Nesema",
+  },
   description:
-    "A holistic health platform connecting patients with specialist practitioners.",
+    "Connect with specialist holistic health practitioners. Functional nutrition, physiotherapy, sleep coaching, and more.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -28,6 +31,21 @@ export const metadata: Metadata = {
   },
   other: {
     "mobile-web-app-capable": "yes",
+  },
+  openGraph: {
+    siteName: "Nesema",
+    title: "Nesema — Health, felt whole.",
+    description:
+      "Connect with specialist holistic health practitioners. Functional nutrition, physiotherapy, sleep coaching, and more.",
+    images: [{ url: "/og-image.svg", width: 1200, height: 630 }],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Nesema — Health, felt whole.",
+    description:
+      "Connect with specialist holistic health practitioners. Functional nutrition, physiotherapy, sleep coaching, and more.",
+    images: ["/og-image.svg"],
   },
 };
 
