@@ -11,6 +11,7 @@ import {
   Video,
   MessageSquare,
 } from "lucide-react";
+import { AiInsightCard } from "@/components/shared/AiInsightCard";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ export default async function PatientDashboardPage() {
   if (!patient) redirect("/onboarding/patient");
 
   // Parallel fetches
-  const [checkInsRes, nextApptRes, carePlanRes, practitionerRes] =
+  const [checkInsRes, nextApptRes, carePlanRes, practitionerRes, fullCheckInsRes] =
     await Promise.all([
       supabase
         .from("check_ins")
@@ -150,17 +151,113 @@ export default async function PatientDashboardPage() {
             .eq("id", patient.practitioner_id)
             .single()
         : Promise.resolve({ data: null }),
+
+      // Full check-in data for AI (last 14)
+      supabase
+        .from("check_ins")
+        .select("*")
+        .eq("patient_id", patient.id)
+        .order("checked_in_at", { ascending: false })
+        .limit(14),
     ]);
 
   const checkIns = checkInsRes.data ?? [];
   const nextAppt = nextApptRes.data ?? null;
   const carePlan = carePlanRes.data ?? null;
   const practitioner = practitionerRes.data ?? null;
+  type FullCheckIn = {
+    id: string;
+    patient_id: string;
+    checked_in_at: string;
+    mood_score: number | null;
+    energy_score: number | null;
+    sleep_hours: number | null;
+    digestion_score: number | null;
+    symptoms: string[] | null;
+    supplements_taken: string[] | null;
+    notes: string | null;
+  };
+  const fullCheckIns = (fullCheckInsRes.data ?? []) as FullCheckIn[];
 
   // Derived values
   const streak = calcStreak(checkIns.map((c) => c.checked_in_at));
   const totalCheckIns = checkIns.length;
   const week = programmeWeek(patient.programme_start);
+
+  // AI data computations
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const last7Full = fullCheckIns.filter(
+    (c) => c.checked_in_at.slice(0, 10) >= sevenDaysAgo
+  );
+  const showWeeklySummary = last7Full.length >= 3;
+
+  const avg14 = (vals: (number | null)[]): string => {
+    const v = vals.filter((x): x is number => x !== null);
+    return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : "N/A";
+  };
+  const avgEnergy = avg14(fullCheckIns.map((c) => c.energy_score));
+  const avgSleep = avg14(fullCheckIns.map((c) => c.sleep_hours));
+  const avgDigestion = avg14(fullCheckIns.map((c) => c.digestion_score));
+  const avgMood = avg14(fullCheckIns.map((c) => c.mood_score));
+
+  const allSymptoms14 = fullCheckIns.flatMap((c) => (c.symptoms as string[] | null) ?? []);
+  const symFreq: Record<string, number> = {};
+  allSymptoms14.forEach((s) => { symFreq[s] = (symFreq[s] ?? 0) + 1; });
+  const topSymptoms14 = Object.entries(symFreq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([s, n]) => `${s} (×${n})`)
+    .join(", ") || "None";
+
+  const allSymptoms7 = last7Full.flatMap((c) => (c.symptoms as string[] | null) ?? []);
+  const symFreq7: Record<string, number> = {};
+  allSymptoms7.forEach((s) => { symFreq7[s] = (symFreq7[s] ?? 0) + 1; });
+  const topSymptoms7 = Object.entries(symFreq7)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([s]) => s)
+    .join(", ") || "None";
+
+  // Supplement names from care plan
+  type Supp = { name?: string } | string;
+  const suppList = Array.isArray(carePlan?.supplements)
+    ? (carePlan!.supplements as Supp[]).map((s) =>
+        typeof s === "string" ? s : (s?.name ?? "")
+      ).filter(Boolean).join(", ")
+    : "None";
+
+  const firstName = profile?.first_name ?? "there";
+
+  // Weekly summary message
+  const weeklySummaryMessage = [
+    `Patient first name: ${firstName}`,
+    `Programme week: ${week}`,
+    `Current goals: ${(carePlan?.goals as string[] | null ?? []).join(", ") || "None"}`,
+    `Most common symptoms this week: ${topSymptoms7}`,
+    "",
+    "Last 7 check-ins (most recent first):",
+    ...last7Full.map((c) =>
+      `  ${c.checked_in_at.slice(0, 10)}: mood=${c.mood_score ?? "—"}/5, energy=${c.energy_score ?? "—"}/10, sleep=${c.sleep_hours ?? "—"}h, digestion=${c.digestion_score ?? "—"}/10`
+    ),
+  ].join("\n");
+
+  const weeklySummarySystemPrompt =
+    "You are a warm and encouraging health coach assistant. Write a personalised weekly progress summary for a patient in a holistic health programme. Reference their actual scores — energy, sleep, mood, digestion. Highlight what went well, acknowledge any struggles with empathy, and offer one simple actionable encouragement for the coming week. Write directly to the patient using their first name. Keep it to 3 short paragraphs. Warm, human, never clinical.";
+
+  // Dashboard insight message
+  const dashboardInsightMessage = [
+    `Last 14 check-ins averaged scores:`,
+    `  Avg energy: ${avgEnergy}/10`,
+    `  Avg sleep: ${avgSleep}h`,
+    `  Avg digestion: ${avgDigestion}/10`,
+    `  Avg mood: ${avgMood}/5`,
+    `Most common symptoms: ${topSymptoms14}`,
+    `Current supplement protocol: ${suppList}`,
+    `Active care plan goals: ${(carePlan?.goals as string[] | null ?? []).join("; ") || "None"}`,
+  ].join("\n");
+
+  const dashboardInsightSystemPrompt =
+    "You are a supportive health assistant. Based on this patient's recent check-in data, provide one specific, actionable insight they can act on today. It should relate directly to their symptoms or scores — for example, a sleep hygiene tip if sleep is low, a gentle movement suggestion if energy is low, or a positive reinforcement if scores are improving. Write 2–3 sentences maximum. Warm and encouraging tone. No medical advice.";
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const todaysCheckIn = checkIns.find((c) =>
@@ -365,6 +462,27 @@ export default async function PatientDashboardPage() {
           </div>
         )}
       </div>
+
+      {/* ── AI Insight Cards ────────────────────────────────────────────────── */}
+      {showWeeklySummary && (
+        <AiInsightCard
+          title={`Your Week in Review ✦`}
+          systemPrompt={weeklySummarySystemPrompt}
+          userMessage={weeklySummaryMessage}
+          apiRoute="/api/ai/weekly-summary"
+          cacheKey={`weekly-summary-${patient.id}`}
+        />
+      )}
+
+      {fullCheckIns.length >= 3 && (
+        <AiInsightCard
+          title="Today&apos;s Insight ✦"
+          systemPrompt={dashboardInsightSystemPrompt}
+          userMessage={dashboardInsightMessage}
+          apiRoute="/api/ai/dashboard-insight"
+          cacheKey={`dashboard-insight-${patient.id}`}
+        />
+      )}
     </div>
   );
 }

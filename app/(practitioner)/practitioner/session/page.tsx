@@ -14,6 +14,8 @@ import {
   Clock,
   FileText,
   AlertCircle,
+  Sparkles,
+  X,
 } from "lucide-react";
 import DailyIframe from "@daily-co/daily-js";
 import type { DailyCall } from "@daily-co/daily-js";
@@ -70,6 +72,11 @@ export default function PractitionerSessionPage() {
   const [muted, setMuted] = useState(false);
   const [camOff, setCamOff] = useState(false);
 
+  // AI draft notes state
+  const [aiDraft, setAiDraft] = useState("");
+  const [aiDraftLoading, setAiDraftLoading] = useState(false);
+  const [showAiDraft, setShowAiDraft] = useState(false);
+  const aiAbortRef = useRef<AbortController | null>(null);
 
   const callRef = useRef<DailyCall | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -134,6 +141,7 @@ export default function PractitionerSessionPage() {
     return () => {
       if (callRef.current) callRef.current.destroy();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointmentId]);
 
   async function startSession() {
@@ -193,6 +201,7 @@ export default function PractitionerSessionPage() {
         .update({ practitioner_notes: val })
         .eq("id", appt.id);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [appt]
   );
 
@@ -212,6 +221,61 @@ export default function PractitionerSessionPage() {
     if (!callRef.current) return;
     if (camOff) { callRef.current.setLocalVideo(true); setCamOff(false); }
     else { callRef.current.setLocalVideo(false); setCamOff(true); }
+  }
+
+  async function draftWithAI() {
+    if (!notes.trim()) return;
+    if (aiAbortRef.current) aiAbortRef.current.abort();
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
+
+    setShowAiDraft(true);
+    setAiDraftLoading(true);
+    setAiDraft("");
+
+    const userMessage = [
+      `Patient: ${patient?.name ?? "Unknown"}`,
+      `Session type: ${appt ? TYPE_LABEL[appt.appointment_type] : "Unknown"}`,
+      `Presenting complaint: ${patient?.condition ?? "Not recorded"}`,
+      ``,
+      `Practitioner bullet-point notes:`,
+      notes,
+    ].join("\n");
+
+    try {
+      const res = await fetch("/api/ai/session-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userMessage }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        if (res.status === 429 || err?.code === "RATE_LIMIT") {
+          setAiDraft("You've used a lot of AI features today. Come back tomorrow for fresh insights.");
+          setAiDraftLoading(false);
+          return;
+        }
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+      const decoder = new TextDecoder();
+      let accumulated = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+        setAiDraft(accumulated);
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        setAiDraft("Unable to generate draft right now. Please try again.");
+      }
+    }
+    setAiDraftLoading(false);
   }
 
   if (loading) {
@@ -379,6 +443,63 @@ export default function PractitionerSessionPage() {
             rows={5}
             className="w-full border border-nesema-bdr rounded-xl px-3 py-2.5 text-sm text-nesema-t1 resize-none focus:outline-none focus:border-nesema-sage"
           />
+          <div className="mt-3">
+            <button
+              onClick={draftWithAI}
+              disabled={!notes.trim() || aiDraftLoading}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#EDE9FE] text-[#7C3AED] text-xs font-medium hover:bg-[#DDD6FE] transition-colors disabled:opacity-50"
+            >
+              <Sparkles size={13} />
+              Draft with AI
+            </button>
+          </div>
+
+          {/* AI Draft panel */}
+          {showAiDraft && (
+            <div className="mt-4 border-t border-nesema-bdr pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-[#7C3AED] flex items-center gap-1">
+                  <Sparkles size={12} /> AI Draft — review and edit before saving
+                </p>
+                <button
+                  onClick={() => { setShowAiDraft(false); aiAbortRef.current?.abort(); }}
+                  className="p-1 text-nesema-t3 hover:text-nesema-t1"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              {aiDraftLoading && !aiDraft && (
+                <div className="space-y-2 py-2">
+                  <div className="h-2.5 bg-[#EDE9FE] rounded-full animate-pulse w-full" />
+                  <div className="h-2.5 bg-[#EDE9FE] rounded-full animate-pulse w-5/6" />
+                  <div className="h-2.5 bg-[#EDE9FE] rounded-full animate-pulse w-4/6" />
+                </div>
+              )}
+              <textarea
+                value={aiDraft}
+                onChange={(e) => setAiDraft(e.target.value)}
+                rows={8}
+                className="w-full border border-[#C4B5FD] rounded-xl px-3 py-2.5 text-sm text-nesema-t1 resize-none focus:outline-none focus:border-[#7C3AED] bg-[#FAFAFE]"
+                placeholder="AI draft will appear here…"
+              />
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => { handleNotesChange(aiDraft); setShowAiDraft(false); }}
+                  disabled={!aiDraft}
+                  className="px-3 py-1.5 bg-nesema-bark text-white text-xs font-medium rounded-lg hover:bg-nesema-bark/90 transition-colors disabled:opacity-50"
+                >
+                  Use this draft
+                </button>
+                <button
+                  onClick={() => { setShowAiDraft(false); aiAbortRef.current?.abort(); }}
+                  className="px-3 py-1.5 border border-nesema-bdr text-nesema-t2 text-xs font-medium rounded-lg hover:bg-nesema-bg transition-colors"
+                >
+                  Discard
+                </button>
+              </div>
+              <p className="text-[10px] text-nesema-t4 mt-2">Powered by Claude</p>
+            </div>
+          )}
         </div>
 
         {/* Patient notes if any */}
