@@ -395,7 +395,14 @@ export default function PatientOnboardingPage() {
   async function step1Next() { setSaving(true); await upsertProfile(); setSaving(false); setStep(2); }
   async function step2Next() { setSaving(true); await upsertProfile(); setSaving(false); setStep(3); }
   async function step3Next() { setSaving(true); await upsertProfile(); setSaving(false); setStep(4); }
-  async function step4Next() { setSaving(true); await upsertProfile(); setSaving(false); setDone(true); }
+  async function step4Next() {
+    setSaving(true);
+    await upsertProfile();
+    // GHL sync — fire and forget, never block
+    fetch("/api/onboarding/patient/complete", { method: "POST" }).catch(() => {});
+    setSaving(false);
+    setDone(true);
+  }
 
   if (step === 0) return (
     <div className="min-h-screen bg-[#F6F3EE] flex items-center justify-center">

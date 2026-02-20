@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminDb, requireAdmin, auditLog } from "@/lib/admin-api";
+import { syncPatientMatched } from "@/lib/ghl-sync";
 
 export async function POST(
   req: Request,
@@ -36,6 +37,9 @@ export async function POST(
     targetId: id,
     metadata: { new_practitioner_id: practitionerId },
   });
+
+  // GHL sync — never block
+  try { await syncPatientMatched(id, practitionerId); } catch {}
 
   return NextResponse.json({ ok: true });
 }

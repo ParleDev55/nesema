@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendAppointmentReminder } from "@/lib/resend";
+import { sendAppointmentSMSReminder } from "@/lib/ghl-sync";
 
 // Vercel Cron: runs every hour
 // vercel.json: { "crons": [{ "path": "/api/cron/reminders", "schedule": "0 * * * *" }] }
@@ -99,6 +100,9 @@ export async function GET(request: Request) {
         .from("appointments")
         .update({ reminder_sent: true })
         .eq("id", appt.id);
+
+      // SMS reminder alongside email — never block
+      sendAppointmentSMSReminder(appt.id).catch(() => {});
 
       sent++;
     } catch (emailErr) {

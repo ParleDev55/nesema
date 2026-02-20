@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb, requireAdmin, auditLog } from "@/lib/admin-api";
 import { sendPractitionerRejected } from "@/lib/resend";
+import { syncPractitionerRejected } from "@/lib/ghl-sync";
 
 export async function POST(
   req: Request,
@@ -59,6 +60,9 @@ export async function POST(
       reason,
     }).catch(() => {});
   }
+
+  // GHL sync — never block the response
+  try { await syncPractitionerRejected(id, reason); } catch {}
 
   return NextResponse.json({ ok: true });
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminDb, requireAdmin, auditLog } from "@/lib/admin-api";
+import { syncPatientChurned } from "@/lib/ghl-sync";
 
 export async function POST(
   _req: Request,
@@ -32,6 +33,9 @@ export async function POST(
     targetType: "patient",
     targetId: id,
   });
+
+  // GHL sync before deletion so the patient record still exists
+  try { await syncPatientChurned(id); } catch {}
 
   // Delete the auth user — cascades to profile and patient rows via FK
   const { error: deleteErr } = await supabase.auth.admin.deleteUser(patient.profile_id);
