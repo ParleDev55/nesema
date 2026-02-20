@@ -40,9 +40,23 @@ export default function SignInPage() {
       .eq("id", data.user.id)
       .single();
 
-    const profile = profileData as Pick<Profile, "role"> | null;
+    let profile = profileData as Pick<Profile, "role"> | null;
 
-    if (profile?.role === "practitioner") {
+    // If no profile row exists (trigger may not have run), create one now
+    // using the role stored in auth user metadata during sign-up.
+    if (!profile) {
+      const metaRole = data.user.user_metadata?.role as string | undefined;
+      const role =
+        metaRole === "practitioner" || metaRole === "patient"
+          ? metaRole
+          : "patient";
+      await supabase
+        .from("profiles")
+        .insert({ id: data.user.id, email: data.user.email ?? "", role });
+      profile = { role } as Pick<Profile, "role">;
+    }
+
+    if (profile.role === "practitioner") {
       router.push("/practitioner/dashboard");
     } else {
       router.push("/patient/dashboard");

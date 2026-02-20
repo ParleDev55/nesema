@@ -28,7 +28,10 @@ export default async function PatientLayout({
   const profile = data as Profile | null;
 
   if (profile?.role !== "patient") {
-    redirect("/practitioner/dashboard");
+    // Only cross-redirect if we know the exact role; otherwise fall back to
+    // sign-in to avoid an infinite loop (null profile, admin role, etc.)
+    if (profile?.role === "practitioner") redirect("/practitioner/dashboard");
+    redirect("/sign-in");
   }
 
   const { data: platformSettings } = await supabase
