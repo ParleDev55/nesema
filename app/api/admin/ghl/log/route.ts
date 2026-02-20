@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, adminDb } from "@/lib/admin-api";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export async function GET() {
   try {
     await requireAdmin();
