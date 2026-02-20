@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { Users, Stethoscope, CalendarDays, PoundSterling, TrendingUp, UserPlus } from "lucide-react";
+import { Users, Stethoscope, CalendarDays, PoundSterling, TrendingUp, UserPlus, Sparkles } from "lucide-react";
 import type { Database } from "@/types/database";
 
 function adminClient() {
@@ -125,6 +125,8 @@ export default async function AdminOverviewPage() {
     { data: newSignups },
     { data: auditLogRaw },
     { data: recentProfiles },
+    { count: aiCallsWeek },
+    { data: aiFeatureBreakdownRaw },
   ] = await Promise.all([
     supabase.from("practitioners").select("*", { count: "exact", head: true }),
     supabase
@@ -168,6 +170,17 @@ export default async function AdminOverviewPage() {
       .select("id, role, first_name, last_name, email, created_at")
       .order("created_at", { ascending: false })
       .limit(20),
+
+    // AI usage stats
+    supabase
+      .from("ai_usage_log")
+      .select("*", { count: "exact", head: true })
+      .gte("created_at", weekStart),
+
+    supabase
+      .from("ai_usage_log")
+      .select("feature, created_at")
+      .gte("created_at", weekStart),
   ]);
 
   const auditLog = (auditLogRaw ?? []) as unknown as AuditLogRow[];
@@ -203,6 +216,15 @@ export default async function AdminOverviewPage() {
   const maxRevenue = Math.max(...weeklyRevenue.map((w) => w.value), 1);
 
   const newSignupCount = (newSignups ?? []).length;
+
+  // AI usage breakdown by feature
+  const aiFeatureBreakdown: Record<string, number> = {};
+  (aiFeatureBreakdownRaw ?? []).forEach((row: { feature: string }) => {
+    aiFeatureBreakdown[row.feature] = (aiFeatureBreakdown[row.feature] ?? 0) + 1;
+  });
+  const aiBreakdownEntries = Object.entries(aiFeatureBreakdown).sort(
+    (a, b) => b[1] - a[1]
+  );
 
   const showAuditLog = (auditLog ?? []).length > 0;
   const activityItems = showAuditLog
@@ -242,7 +264,7 @@ export default async function AdminOverviewPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
         <StatCard
           icon={<Stethoscope size={16} />}
           label="Practitioners"
@@ -278,6 +300,12 @@ export default async function AdminOverviewPage() {
           value={String(newSignupCount)}
           accent="#7B6FA8"
         />
+        <StatCard
+          icon={<Sparkles size={16} />}
+          label="AI calls (7d)"
+          value={String(aiCallsWeek ?? 0)}
+          accent="#7C3AED"
+        />
       </div>
 
       {/* Charts */}
@@ -304,6 +332,38 @@ export default async function AdminOverviewPage() {
           <BarChart data={weeklyRevenue} maxValue={maxRevenue} color="#C27D30" />
         </div>
       </div>
+
+      {/* AI Usage Breakdown */}
+      {aiBreakdownEntries.length > 0 && (
+        <div className="bg-nesema-surf rounded-2xl border border-nesema-bdr p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles size={14} className="text-[#7C3AED]" />
+            <h2 className="text-sm font-semibold text-nesema-t1">AI feature usage (7d)</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-nesema-bdr">
+                  <th className="text-left text-xs text-nesema-t3 uppercase tracking-wide pb-2 font-semibold">Feature</th>
+                  <th className="text-right text-xs text-nesema-t3 uppercase tracking-wide pb-2 font-semibold">Calls</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-nesema-bdr">
+                {aiBreakdownEntries.map(([feature, count]) => (
+                  <tr key={feature}>
+                    <td className="py-2 text-nesema-t2 text-sm capitalize">
+                      {feature.replace(/-/g, " ")}
+                    </td>
+                    <td className="py-2 text-right text-nesema-t1 font-medium text-sm">
+                      {count}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Activity feed */}
       <div className="bg-nesema-surf rounded-2xl border border-nesema-bdr p-5">

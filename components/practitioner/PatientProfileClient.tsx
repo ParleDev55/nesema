@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/database";
@@ -12,7 +12,10 @@ import {
   ExternalLink,
   Save,
   CheckCircle2,
+  Sparkles,
+  X,
 } from "lucide-react";
+import { AiInsightCard } from "@/components/shared/AiInsightCard";
 
 type PatientRow = Database["public"]["Tables"]["patients"]["Row"];
 type CheckInRow = Database["public"]["Tables"]["check_ins"]["Row"];
@@ -65,6 +68,100 @@ function ScoreBar({ value, max, color }: { value: number | null; max: number; co
   );
 }
 
+// ── Build AI messages ─────────────────────────────────────────────────────────
+function buildCheckinUserMessage(
+  checkIns: CheckInRow[],
+  patient: PatientRow,
+  name: string,
+  discipline: string,
+  week: number
+): string {
+  const lines: string[] = [
+    `Patient: ${name}`,
+    `Programme week: ${week}`,
+    `Discipline: ${discipline}`,
+    `Diagnosed conditions: ${patient.diagnosed_conditions ?? "None recorded"}`,
+    `Goals: ${(patient.goals ?? []).join(", ") || "None recorded"}`,
+    `Current health: ${patient.current_health ?? "Not recorded"}`,
+    "",
+    "Last 30 check-ins (most recent first):",
+  ];
+  checkIns.slice(0, 30).forEach((ci) => {
+    lines.push(
+      `  ${ci.checked_in_at.slice(0, 10)}: mood=${ci.mood_score ?? "—"}/5, energy=${ci.energy_score ?? "—"}/10, sleep=${ci.sleep_hours ?? "—"}h, digestion=${ci.digestion_score ?? "—"}/10, symptoms=[${(ci.symptoms ?? []).join(", ")}], notes="${ci.notes ?? ""}"`
+    );
+  });
+  return lines.join("\n");
+}
+
+function buildLabUserMessage(
+  docs: DocumentRow[],
+  patient: PatientRow,
+  name: string,
+  discipline: string
+): string {
+  const lines: string[] = [
+    `Patient: ${name}`,
+    `Discipline: ${discipline}`,
+    `Diagnosed conditions: ${patient.diagnosed_conditions ?? "None recorded"}`,
+    `Current medications: ${patient.medications ?? "None recorded"}`,
+    "",
+    "Lab result documents uploaded:",
+  ];
+  if (docs.length === 0) {
+    lines.push("  No lab results uploaded yet.");
+  } else {
+    docs.forEach((d) => {
+      lines.push(`  - ${d.title} (uploaded ${d.created_at.slice(0, 10)})`);
+    });
+  }
+  return lines.join("\n");
+}
+
+function buildCarePlanUserMessage(
+  patient: PatientRow,
+  checkIns: CheckInRow[],
+  carePlan: CarePlanRow | null,
+  name: string,
+  discipline: string,
+  week: number
+): string {
+  const recent14 = checkIns.slice(0, 14);
+  const avg = (vals: (number | null)[]) => {
+    const v = vals.filter((x): x is number => x !== null);
+    return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : "N/A";
+  };
+  const allSymptoms = recent14.flatMap((c) => c.symptoms ?? []);
+  const symptomFreq: Record<string, number> = {};
+  allSymptoms.forEach((s) => { symptomFreq[s] = (symptomFreq[s] ?? 0) + 1; });
+  const topSymptoms = Object.entries(symptomFreq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([s, n]) => `${s} (×${n})`)
+    .join(", ");
+
+  return [
+    `Patient: ${name}`,
+    `Programme week: ${week}`,
+    `Discipline: ${discipline}`,
+    `Diagnosed conditions: ${patient.diagnosed_conditions ?? "None"}`,
+    `Current medications: ${patient.medications ?? "None"}`,
+    `Allergies: ${patient.allergies ?? "None"}`,
+    `Patient goals: ${(patient.goals ?? []).join(", ") || "None"}`,
+    `Diet type: ${patient.diet_type ?? "Not specified"}`,
+    `Average sleep: ${patient.avg_sleep ?? "Not specified"}`,
+    `Activity level: ${patient.activity_level ?? "Not specified"}`,
+    `Current care plan goals: ${(carePlan?.goals ?? []).join("; ") || "None"}`,
+    "",
+    "Last 14 check-ins summary:",
+    `  Avg energy: ${avg(recent14.map((c) => c.energy_score))}/10`,
+    `  Avg sleep: ${avg(recent14.map((c) => c.sleep_hours))}h`,
+    `  Avg digestion: ${avg(recent14.map((c) => c.digestion_score))}/10`,
+    `  Avg mood: ${avg(recent14.map((c) => c.mood_score))}/5`,
+    `  Most common symptoms: ${topSymptoms || "None"}`,
+  ].join("\n");
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export function PatientProfileClient({
   patientId,
@@ -77,6 +174,7 @@ export function PatientProfileClient({
   discipline,
   email,
   patient,
+  checkIns,
   last7CheckIns,
   adherence,
   avgMetrics,
@@ -93,6 +191,13 @@ export function PatientProfileClient({
   const [docs, setDocs] = useState<DocumentRow[]>(initialDocs);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Care plan AI draft state
+  const [draftOpen, setDraftOpen] = useState(false);
+  const [draftContent, setDraftContent] = useState("");
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [draftApplying, setDraftApplying] = useState(false);
+  const draftAbortRef = useRef<AbortController | null>(null);
 
   const supabase = createClient();
 
@@ -143,8 +248,178 @@ export function PatientProfileClient({
     if (data?.signedUrl) window.open(data.signedUrl, "_blank");
   }
 
+  const generateCarePlanDraft = useCallback(async () => {
+    if (draftAbortRef.current) draftAbortRef.current.abort();
+    const controller = new AbortController();
+    draftAbortRef.current = controller;
+
+    setDraftOpen(true);
+    setDraftLoading(true);
+    setDraftContent("");
+
+    const userMessage = buildCarePlanUserMessage(
+      patient,
+      checkIns,
+      carePlan,
+      name,
+      discipline,
+      week
+    );
+
+    try {
+      const res = await fetch("/api/ai/care-plan-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userMessage, practitionerId }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        if (res.status === 429 || err?.code === "RATE_LIMIT") {
+          setDraftContent(
+            "You've used a lot of AI features today. Come back tomorrow for fresh insights."
+          );
+          setDraftLoading(false);
+          return;
+        }
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+      const decoder = new TextDecoder();
+      let accumulated = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+        setDraftContent(accumulated);
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        setDraftContent("Unable to generate draft right now. Please try again.");
+      }
+    }
+    setDraftLoading(false);
+  }, [patient, checkIns, carePlan, name, discipline, week, practitionerId]);
+
+  async function applyCarePlanDraft() {
+    if (!carePlan || !draftContent) return;
+    setDraftApplying(true);
+
+    // Try to extract goals from the "Weekly Goals" section
+    const goalsMatch = draftContent.match(
+      /Weekly Goals[:\s]*([\s\S]*?)(?=\n\s*Supplements|\n\s*Dietary Focus|$)/i
+    );
+    const extractedGoals: string[] = [];
+    if (goalsMatch) {
+      const block = goalsMatch[1];
+      const items = block.match(/^\s*[-*\d.]+\s+(.+)$/gm);
+      if (items) {
+        items.forEach((item) => {
+          const cleaned = item.replace(/^\s*[-*\d.]+\s+/, "").trim();
+          if (cleaned) extractedGoals.push(cleaned);
+        });
+      }
+    }
+
+    const now = new Date().toISOString();
+    await supabase
+      .from("care_plans")
+      .update({
+        notes: draftContent,
+        goals: extractedGoals.length > 0 ? extractedGoals : (carePlan.goals ?? []),
+        updated_at: now,
+      })
+      .eq("id", carePlan.id);
+
+    setNotes(draftContent);
+    setSavedAt(now);
+    setDraftApplying(false);
+    setDraftOpen(false);
+  }
+
+  // Build AI user messages (memo-stable values)
+  const checkinUserMessage = buildCheckinUserMessage(
+    checkIns,
+    patient,
+    name,
+    discipline,
+    week
+  );
+  const checkinSystemPrompt =
+    "You are a clinical insights assistant for a holistic health practitioner. Analyse the patient's recent check-in data and provide a concise, clinically useful summary. Identify patterns, correlations, and anything that warrants attention. Write in plain English. Be specific — reference actual scores and dates where relevant. Do not give medical diagnoses. Keep your response to 3–4 short paragraphs.";
+
+  const labUserMessage = buildLabUserMessage(docs, patient, name, discipline);
+  const labSystemPrompt =
+    "You are a clinical assistant helping a holistic health practitioner understand their patient's lab results. Based on the available information, provide a plain English interpretation of what these results may indicate in the context of this patient's health history and goals. Flag anything that appears out of range or warrants follow-up. Do not provide a medical diagnosis. Remind the practitioner to use their clinical judgement. Keep your response to 3–5 short paragraphs.";
+
   return (
     <div className="min-h-full">
+      {/* ── Care Plan Draft Slide-over ───────────────────────────────────── */}
+      {draftOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => { setDraftOpen(false); draftAbortRef.current?.abort(); }}
+          />
+          <div className="relative w-full max-w-lg bg-white h-full flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-nesema-bdr">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-[#7C3AED]" />
+                <h2 className="font-semibold text-nesema-t1">AI Care Plan Draft</h2>
+              </div>
+              <button
+                onClick={() => { setDraftOpen(false); draftAbortRef.current?.abort(); }}
+                className="p-1.5 rounded-full hover:bg-nesema-bg text-nesema-t3 hover:text-nesema-t1 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              {draftLoading && !draftContent && (
+                <div className="space-y-3">
+                  <p className="text-xs text-[#7C3AED] font-medium animate-pulse">
+                    Generating draft…
+                  </p>
+                  {[1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className="h-3 bg-[#EDE9FE] rounded-full animate-pulse"
+                      style={{ width: `${90 - i * 8}%` }}
+                    />
+                  ))}
+                </div>
+              )}
+              {draftContent && (
+                <p className="text-sm text-nesema-t2 leading-relaxed whitespace-pre-wrap">
+                  {draftContent}
+                </p>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-nesema-bdr flex gap-3">
+              <button
+                onClick={applyCarePlanDraft}
+                disabled={!draftContent || draftLoading || draftApplying}
+                className="flex-1 bg-nesema-bark text-white py-2.5 rounded-xl text-sm font-medium hover:bg-nesema-bark/90 transition-colors disabled:opacity-50"
+              >
+                {draftApplying ? "Applying…" : "Apply to plan"}
+              </button>
+              <button
+                onClick={() => { setDraftOpen(false); draftAbortRef.current?.abort(); }}
+                className="flex-1 border border-nesema-bdr text-nesema-t2 py-2.5 rounded-xl text-sm font-medium hover:bg-nesema-bg transition-colors"
+              >
+                Discard
+              </button>
+            </div>
+            <p className="text-center text-[10px] text-nesema-t4 pb-3">Powered by Claude</p>
+          </div>
+        </div>
+      )}
+
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="bg-[#2A2118] px-4 md:px-8 pt-6 pb-0">
         <div className="flex flex-col sm:flex-row sm:items-start gap-4 mb-6">
@@ -344,12 +619,29 @@ export function PatientProfileClient({
                 </div>
               )}
             </div>
+
+            {/* ── AI Trend Analysis ── */}
+            <AiInsightCard
+              title="AI Trend Analysis"
+              systemPrompt={checkinSystemPrompt}
+              userMessage={checkinUserMessage}
+              apiRoute="/api/ai/checkin-analysis"
+            />
           </div>
         )}
 
         {/* ── PLAN ────────────────────────────────────────────────────────── */}
         {activeTab === "Plan" && (
           <div className="space-y-6 max-w-2xl">
+            {/* Generate with AI button */}
+            <button
+              onClick={generateCarePlanDraft}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#EDE9FE] text-[#7C3AED] text-sm font-medium hover:bg-[#DDD6FE] transition-colors"
+            >
+              <Sparkles size={16} />
+              Generate with AI
+            </button>
+
             {/* Care plan */}
             <div className="bg-white rounded-2xl border border-nesema-bdr p-5">
               <div className="flex items-center justify-between mb-4">
@@ -522,6 +814,17 @@ export function PatientProfileClient({
                 ))}
               </div>
             )}
+
+            {/* AI Lab Interpretation */}
+            <AiInsightCard
+              title="AI Lab Interpretation"
+              systemPrompt={labSystemPrompt}
+              userMessage={labUserMessage}
+              apiRoute="/api/ai/lab-interpretation"
+            />
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+              AI interpretation is a decision-support tool only. Always apply clinical judgement.
+            </p>
           </div>
         )}
       </div>
