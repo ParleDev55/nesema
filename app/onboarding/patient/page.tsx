@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import type { Patient } from "@/types/database";
 import { Check, ChevronRight, CalendarDays, BookOpen, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
@@ -357,7 +358,7 @@ export default function PatientOnboardingPage() {
     setUserId(user.id);
     const { data: prof } = await sb.from("profiles").select("first_name,last_name,email").eq("id", user.id).single();
     if (prof) { setFirstName(prof.first_name || ""); setLastName(prof.last_name || ""); }
-    const { data: pat } = await sb.from("patients").select("*").eq("profile_id", user.id).single();
+    const { data: pat } = await sb.from("patients").select("*").eq("profile_id", user.id).single() as { data: Patient | null; error: unknown };
     if (pat) {
       setDob(pat.date_of_birth || "");
       setCurrentHealth(pat.current_health || ""); setDiagnosedConditions(pat.diagnosed_conditions || "");

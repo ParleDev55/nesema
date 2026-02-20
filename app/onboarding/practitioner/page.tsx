@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import type { Practitioner, Database } from "@/types/database";
+type AvailabilityRow = Database["public"]["Tables"]["availability"]["Row"];
 import { Check, Upload, AlertTriangle, ChevronRight, Flame } from "lucide-react";
 
 const STEPS = [
@@ -381,7 +383,7 @@ export default function PractitionerOnboardingPage() {
     const { data: prof } = await sb.from("profiles").select("first_name,last_name,email").eq("id", user.id).single();
     if (prof) { setFirstName(prof.first_name || ""); setLastName(prof.last_name || ""); setEmail(prof.email || user.email || ""); }
     else setEmail(user.email || "");
-    const { data: prac } = await sb.from("practitioners").select("*").eq("profile_id", user.id).single();
+    const { data: prac } = await sb.from("practitioners").select("*").eq("profile_id", user.id).single() as { data: Practitioner | null; error: unknown };
     if (prac) {
       setPracDbId(prac.id);
       setDiscipline(prac.discipline || ""); setRegistrationBody(prac.registration_body || "");
@@ -392,7 +394,7 @@ export default function PractitionerOnboardingPage() {
       setInitialFee(prac.initial_fee ? String(prac.initial_fee / 100) : "");
       setFollowupFee(prac.followup_fee ? String(prac.followup_fee / 100) : "");
       setCancellationHours(prac.cancellation_hours || 24); setBookingSlug(prac.booking_slug || "");
-      const { data: avail } = await sb.from("availability").select("*").eq("practitioner_id", prac.id);
+      const { data: avail } = await sb.from("availability").select("*").eq("practitioner_id", prac.id) as { data: AvailabilityRow[] | null; error: unknown };
       if (avail?.length) {
         const map: DayAvail = Object.fromEntries([0,1,2,3,4,5,6].map(d => [d, { active: false, startTime: "09:00", endTime: "17:00" }]));
         avail.forEach(r => { map[r.day_of_week] = { active: r.is_active, startTime: r.start_time.slice(0,5), endTime: r.end_time.slice(0,5) }; });
