@@ -13,29 +13,32 @@ export interface Database {
       profiles: {
         Row: {
           id: string;
-          role: "practitioner" | "patient";
+          role: "practitioner" | "patient" | "admin";
           first_name: string | null;
           last_name: string | null;
           email: string | null;
           avatar_url: string | null;
+          suspended: boolean;
           created_at: string;
         };
         Insert: {
           id: string;
-          role: "practitioner" | "patient";
+          role: "practitioner" | "patient" | "admin";
           first_name?: string | null;
           last_name?: string | null;
           email?: string | null;
           avatar_url?: string | null;
+          suspended?: boolean;
           created_at?: string;
         };
         Update: {
           id?: string;
-          role?: "practitioner" | "patient";
+          role?: "practitioner" | "patient" | "admin";
           first_name?: string | null;
           last_name?: string | null;
           email?: string | null;
           avatar_url?: string | null;
+          suspended?: boolean;
           created_at?: string;
         };
         Relationships: [];
@@ -535,6 +538,63 @@ export interface Database {
         };
         Relationships: [];
       };
+      admin_audit_log: {
+        Row: {
+          id: string;
+          admin_id: string | null;
+          action: string;
+          target_type: string | null;
+          target_id: string | null;
+          metadata: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          admin_id?: string | null;
+          action: string;
+          target_type?: string | null;
+          target_id?: string | null;
+          metadata?: Json | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          admin_id?: string | null;
+          action?: string;
+          target_type?: string | null;
+          target_id?: string | null;
+          metadata?: Json | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      platform_settings: {
+        Row: {
+          id: string;
+          allow_practitioner_signup: boolean;
+          allow_patient_signup: boolean;
+          maintenance_mode: boolean;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          allow_practitioner_signup?: boolean;
+          allow_patient_signup?: boolean;
+          maintenance_mode?: boolean;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          allow_practitioner_signup?: boolean;
+          allow_patient_signup?: boolean;
+          maintenance_mode?: boolean;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -555,3 +615,5 @@ export type Message = Database["public"]["Tables"]["messages"]["Row"];
 export type UserNotification = Database["public"]["Tables"]["notifications"]["Row"];
 export type EducationContent = Database["public"]["Tables"]["education_content"]["Row"];
 export type EducationAssignment = Database["public"]["Tables"]["education_assignments"]["Row"];
+export type AdminAuditLog = Database["public"]["Tables"]["admin_audit_log"]["Row"];
+export type PlatformSettings = Database["public"]["Tables"]["platform_settings"]["Row"];

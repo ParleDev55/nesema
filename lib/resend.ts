@@ -239,6 +239,104 @@ export async function sendCheckinStreakAlert({
   });
 }
 
+// ─── Admin — Verified ────────────────────────────────────────────────────────
+export async function sendPractitionerVerified({
+  to,
+  firstName,
+}: {
+  to: string;
+  firstName: string;
+}) {
+  const content = `
+    <h1 style="margin:0 0 8px;font-family:Georgia,serif;font-size:24px;color:#1E1A16;">You're verified, ${firstName}.</h1>
+    <p style="margin:0 0 20px;font-size:15px;color:#5C5248;line-height:1.6;">Great news — your Nesema profile has been reviewed and verified. You're now live on the platform and can start accepting bookings.</p>
+    ${ctaButton("Go to your dashboard", `${APP_URL}/practitioner/dashboard`)}
+  `;
+  return resend.emails.send({
+    from: FROM,
+    to,
+    subject: "Your Nesema profile is now verified",
+    html: emailTemplate(content),
+  });
+}
+
+// ─── Admin — Rejected ────────────────────────────────────────────────────────
+export async function sendPractitionerRejected({
+  to,
+  firstName,
+  reason,
+}: {
+  to: string;
+  firstName: string;
+  reason: string;
+}) {
+  const content = `
+    <h1 style="margin:0 0 8px;font-family:Georgia,serif;font-size:24px;color:#1E1A16;">Application update, ${firstName}.</h1>
+    <p style="margin:0 0 16px;font-size:15px;color:#5C5248;line-height:1.6;">Thank you for applying to join Nesema. After reviewing your profile, we're unable to verify your registration at this time.</p>
+    <table width="100%" style="border-left:3px solid #E6E0D8;padding:12px 16px;margin-bottom:20px;background:#F9F6F2;border-radius:0 8px 8px 0;">
+      <tr><td style="font-size:14px;color:#5C5248;line-height:1.6;">${reason}</td></tr>
+    </table>
+    <p style="margin:0 0 20px;font-size:14px;color:#5C5248;line-height:1.6;">If you believe this is an error or would like to provide additional information, please reply to this email.</p>
+    ${ctaButton("Contact support", `mailto:support@nesema.com`)}
+  `;
+  return resend.emails.send({
+    from: FROM,
+    to,
+    subject: "An update on your Nesema application",
+    html: emailTemplate(content),
+  });
+}
+
+// ─── Admin — Suspended ───────────────────────────────────────────────────────
+export async function sendAccountSuspended({
+  to,
+  firstName,
+  role,
+}: {
+  to: string;
+  firstName: string;
+  role: "practitioner" | "patient";
+}) {
+  const content = `
+    <h1 style="margin:0 0 8px;font-family:Georgia,serif;font-size:24px;color:#1E1A16;">Account suspended, ${firstName}.</h1>
+    <p style="margin:0 0 20px;font-size:15px;color:#5C5248;line-height:1.6;">Your Nesema ${role} account has been suspended by our team. Access to the platform has been paused pending review.</p>
+    <p style="margin:0 0 20px;font-size:14px;color:#5C5248;line-height:1.6;">If you believe this is a mistake or wish to discuss this decision, please get in touch.</p>
+    ${ctaButton("Contact support", `mailto:support@nesema.com`)}
+  `;
+  return resend.emails.send({
+    from: FROM,
+    to,
+    subject: "Your Nesema account has been suspended",
+    html: emailTemplate(content),
+  });
+}
+
+// ─── Admin — Reinstated ──────────────────────────────────────────────────────
+export async function sendAccountReinstated({
+  to,
+  firstName,
+  role,
+}: {
+  to: string;
+  firstName: string;
+  role: "practitioner" | "patient";
+}) {
+  const content = `
+    <h1 style="margin:0 0 8px;font-family:Georgia,serif;font-size:24px;color:#1E1A16;">Welcome back, ${firstName}.</h1>
+    <p style="margin:0 0 20px;font-size:15px;color:#5C5248;line-height:1.6;">Your Nesema ${role} account has been reinstated. You can now access all platform features as normal.</p>
+    ${ctaButton(
+      role === "practitioner" ? "Go to your dashboard" : "Go to the app",
+      role === "practitioner" ? `${APP_URL}/practitioner/dashboard` : `${APP_URL}/patient/dashboard`
+    )}
+  `;
+  return resend.emails.send({
+    from: FROM,
+    to,
+    subject: "Your Nesema account has been reinstated",
+    html: emailTemplate(content),
+  });
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function buildGoogleCalUrl({
   practitionerName,
