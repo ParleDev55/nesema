@@ -19,48 +19,58 @@ export default function SignInPage() {
     setLoading(true);
     setError(null);
 
-    const supabase = createClient();
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const supabase = createClient();
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (signInError || !data.user) {
-      setError("Incorrect email or password. Please try again.");
-      setLoading(false);
-      return;
-    }
+      if (signInError) {
+        setError(signInError.message || "Incorrect email or password. Please try again.");
+        return;
+      }
 
-    // Fetch profile to determine role
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", data.user.id)
-      .single();
+      if (!data.user) {
+        setError("Sign in failed. Please try again.");
+        return;
+      }
 
-    let profile = profileData as Pick<Profile, "role"> | null;
-
-    // If no profile row exists (trigger may not have run), create one now
-    // using the role stored in auth user metadata during sign-up.
-    if (!profile) {
-      const metaRole = data.user.user_metadata?.role as string | undefined;
-      const role =
-        metaRole === "practitioner" || metaRole === "patient"
-          ? metaRole
-          : "patient";
-      await supabase
+      // Fetch profile to determine role
+      const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .insert({ id: data.user.id, email: data.user.email ?? "", role });
-      profile = { role } as Pick<Profile, "role">;
-    }
+        .select("role")
+        .eq("id", data.user.id)
+        .single();
 
-    // Hard redirect so the fresh auth cookies are sent with the new request.
-    // router.push() is a soft navigation and can race with the middleware
-    // reading the session, causing an immediate redirect back to /sign-in.
-    if (profile.role === "practitioner") {
-      window.location.href = "/practitioner/dashboard";
-    } else {
-      window.location.href = "/patient/dashboard";
+      let profile = profileData as Pick<Profile, "role"> | null;
+
+      // If no profile row exists (trigger may not have run), create one now
+      // using the role stored in auth user metadata during sign-up.
+      if (!profile || profileError) {
+        const metaRole = data.user.user_metadata?.role as string | undefined;
+        const role =
+          metaRole === "practitioner" || metaRole === "patient"
+            ? metaRole
+            : "patient";
+        await supabase
+          .from("profiles")
+          .insert({ id: data.user.id, email: data.user.email ?? "", role });
+        profile = { role } as Pick<Profile, "role">;
+      }
+
+      // Hard redirect so the fresh auth cookies are sent with the new request.
+      // router.push() is a soft navigation and can race with the middleware
+      // reading the session, causing an immediate redirect back to /sign-in.
+      if (profile.role === "practitioner") {
+        window.location.href = "/practitioner/dashboard";
+      } else {
+        window.location.href = "/patient/dashboard";
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
   }
 
