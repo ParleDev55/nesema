@@ -129,7 +129,8 @@ export default function PatientSessionPage() {
       if (frameRef.current) {
         const call = DailyIframe.createCallObject({
           url: data.url,
-          dailyConfig: { experimentalChromeVideoMuteLightOff: true },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          dailyConfig: { experimentalChromeVideoMuteLightOff: true } as any,
         });
         callRef.current = call;
         call.on("left-meeting", () => handleEnd());
