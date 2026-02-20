@@ -31,6 +31,16 @@ export default async function PatientLayout({
     redirect("/practitioner/dashboard");
   }
 
+  const { data: platformSettings } = await supabase
+    .from("platform_settings")
+    .select("maintenance_mode")
+    .limit(1)
+    .maybeSingle();
+
+  if (platformSettings?.maintenance_mode) {
+    redirect("/maintenance");
+  }
+
   const userName =
     [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
     user.email?.split("@")[0] ||
