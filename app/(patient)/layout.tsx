@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { PatientSidebar } from "@/components/layout/PatientSidebar";
+import { PatientBottomNav } from "@/components/layout/PatientBottomNav";
 import type { Profile } from "@/types/database";
 
 export default async function PatientLayout({
@@ -44,6 +45,7 @@ export default async function PatientLayout({
           avatarUrl={profile?.avatar_url || undefined}
         />
       }
+      bottomNav={<PatientBottomNav />}
     >
       {children}
     </AppShell>
