@@ -62,7 +62,9 @@ export default function SignInPage() {
       // Hard redirect so the fresh auth cookies are sent with the new request.
       // router.push() is a soft navigation and can race with the middleware
       // reading the session, causing an immediate redirect back to /sign-in.
-      if (profile.role === "practitioner") {
+      if (profile.role === "admin") {
+        window.location.href = "/admin";
+      } else if (profile.role === "practitioner") {
         window.location.href = "/practitioner/dashboard";
       } else {
         window.location.href = "/patient/dashboard";
