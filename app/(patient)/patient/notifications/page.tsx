@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { BellOff, CheckCheck } from "lucide-react";
 
-type NotifType = "all" | "unread" | "lab_result" | "appointment" | "message" | "payment";
+type NotifType = "all" | "unread" | "lab_result" | "appointment" | "message";
 
 type Notif = {
   id: string;
@@ -22,15 +22,14 @@ const TABS: { key: NotifType; label: string }[] = [
   { key: "unread", label: "Unread" },
   { key: "appointment", label: "Appointments" },
   { key: "message", label: "Messages" },
-  { key: "payment", label: "Payments" },
   { key: "lab_result", label: "Lab Results" },
 ];
 
 const TYPE_ICON: Record<string, string> = {
   appointment: "📅",
   message: "💬",
-  payment: "💷",
   lab_result: "🧪",
+  payment: "💷",
   default: "🔔",
 };
 
@@ -46,7 +45,7 @@ function fmtRelative(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-export default function PractitionerNotificationsPage() {
+export default function PatientNotificationsPage() {
   const supabase = createClient();
   const router = useRouter();
   const [notifs, setNotifs] = useState<Notif[]>([]);
@@ -70,13 +69,12 @@ export default function PractitionerNotificationsPage() {
   useEffect(() => {
     loadNotifs();
 
-    // Realtime subscription
     let channel: ReturnType<typeof supabase.channel> | null = null;
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       channel = supabase
-        .channel("practitioner-notifications")
+        .channel("patient-notifications")
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
@@ -131,7 +129,6 @@ export default function PractitionerNotificationsPage() {
 
   return (
     <div className="p-6 md:p-8 max-w-2xl mx-auto">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-serif text-3xl text-[#1E1A16]">Notifications</h1>
@@ -151,7 +148,6 @@ export default function PractitionerNotificationsPage() {
         )}
       </div>
 
-      {/* Filter tabs */}
       <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
         {TABS.map(({ key, label }) => {
           const count = key === "unread"
@@ -183,7 +179,6 @@ export default function PractitionerNotificationsPage() {
         })}
       </div>
 
-      {/* List */}
       {filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-[#4E7A5F]/30 p-10 text-center">
           <BellOff className="mx-auto mb-3 text-[#4E7A5F]/40" size={32} />
@@ -192,8 +187,8 @@ export default function PractitionerNotificationsPage() {
           </p>
           <p className="text-[#9C9087] text-sm">
             {activeTab === "unread"
-              ? "You have no unread notifications."
-              : "Notifications will appear here as activity happens."}
+              ? "No unread notifications."
+              : "Your practitioner will send updates and alerts here."}
           </p>
         </div>
       ) : (
