@@ -363,7 +363,6 @@ export default function CalendarPage() {
             <WeekView
               weekDays={weekDays}
               today={today}
-              selectedDay={selectedDay}
               apptsByDay={apptsByDay}
               onSelectDay={setSelectedDay}
               onPrev={prevWeek}
@@ -644,7 +643,6 @@ function MonthView({
 function WeekView({
   weekDays,
   today,
-  selectedDay: _selectedDay,
   apptsByDay,
   onSelectDay,
   onPrev,
@@ -652,7 +650,6 @@ function WeekView({
 }: {
   weekDays: Date[];
   today: Date;
-  selectedDay: string;
   apptsByDay: Record<string, Appt[]>;
   onSelectDay: (d: string) => void;
   onPrev: () => void;
