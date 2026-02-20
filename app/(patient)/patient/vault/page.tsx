@@ -34,7 +34,7 @@ function fmtDate(iso: string) {
 
 function PinPad({ onComplete }: { onComplete: (pin: string) => void }) {
   const [digits, setDigits] = useState<string[]>([]);
-  const [shake, setShake] = useState(false);
+  const [shake] = useState(false);
 
   function press(digit: string) {
     if (digits.length >= 4) return;

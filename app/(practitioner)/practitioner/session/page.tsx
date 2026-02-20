@@ -69,7 +69,7 @@ export default function PractitionerSessionPage() {
   const [ending, setEnding] = useState(false);
   const [muted, setMuted] = useState(false);
   const [camOff, setCamOff] = useState(false);
-  const [dailyConfigured] = useState(!!process.env.NEXT_PUBLIC_DAILY_CONFIGURED);
+
 
   const callRef = useRef<DailyCall | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
