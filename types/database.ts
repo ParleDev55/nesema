@@ -8,6 +8,7 @@ export type Json =
 
 export interface Database {
   public: {
+    PostgrestVersion: "12";
     Tables: {
       profiles: {
         Row: {
@@ -37,6 +38,7 @@ export interface Database {
           avatar_url?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       practitioners: {
         Row: {
@@ -102,6 +104,7 @@ export interface Database {
           stripe_account_id?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       availability: {
         Row: {
@@ -128,6 +131,7 @@ export interface Database {
           end_time?: string;
           is_active?: boolean;
         };
+        Relationships: [];
       };
       patients: {
         Row: {
@@ -199,6 +203,7 @@ export interface Database {
           programme_weeks?: number;
           created_at?: string;
         };
+        Relationships: [];
       };
       appointments: {
         Row: {
@@ -249,6 +254,7 @@ export interface Database {
           stripe_payment_id?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       check_ins: {
         Row: {
@@ -287,6 +293,7 @@ export interface Database {
           supplements_taken?: string[] | null;
           notes?: string | null;
         };
+        Relationships: [];
       };
       care_plans: {
         Row: {
@@ -322,6 +329,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       meal_plans: {
         Row: {
@@ -357,6 +365,7 @@ export interface Database {
           assigned_at?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
       documents: {
         Row: {
@@ -395,6 +404,7 @@ export interface Database {
           requires_pin?: boolean;
           created_at?: string;
         };
+        Relationships: [];
       };
       messages: {
         Row: {
@@ -421,6 +431,7 @@ export interface Database {
           read_at?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       notifications: {
         Row: {
@@ -453,6 +464,7 @@ export interface Database {
           link?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       education_content: {
         Row: {
@@ -485,6 +497,7 @@ export interface Database {
           url?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       education_assignments: {
         Row: {
@@ -511,11 +524,12 @@ export interface Database {
           completed_at?: string | null;
           progress?: number;
         };
+        Relationships: [];
       };
     };
-    Views: {};
-    Functions: {};
-    Enums: {};
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
   };
 }
 
