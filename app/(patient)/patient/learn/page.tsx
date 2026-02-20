@@ -1,6 +1,15 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { BookOpen, Video, GraduationCap, CheckCircle2 } from "lucide-react";
+"use client";
+
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import {
+  BookOpen,
+  Video,
+  GraduationCap,
+  CheckCircle2,
+  ExternalLink,
+} from "lucide-react";
 import type React from "react";
 
 type ContentRow = {
@@ -27,36 +36,77 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
   course: <GraduationCap size={16} />,
 };
 
-export default async function LearnPage() {
+const TYPE_COLOR: Record<string, string> = {
+  article: "bg-nesema-sage/10 text-nesema-sage",
+  video: "bg-amber-100 text-amber-700",
+  course: "bg-purple-100 text-purple-700",
+};
+
+export default function LearnPage() {
+  const router = useRouter();
   const supabase = createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/sign-in");
+  const [items, setItems] = useState<AssignmentRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [completing, setCompleting] = useState<string | null>(null);
 
-  const { data: patient } = (await supabase
-    .from("patients")
-    .select("id")
-    .eq("profile_id", user.id)
-    .single()) as { data: { id: string } | null; error: unknown };
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.push("/sign-in"); return; }
 
-  if (!patient) redirect("/onboarding/patient");
+      const { data: patient } = (await supabase
+        .from("patients")
+        .select("id")
+        .eq("profile_id", user.id)
+        .single()) as { data: { id: string } | null; error: unknown };
 
-  const { data: assignments } = (await supabase
-    .from("education_assignments")
-    .select(
-      "id, content_id, assigned_at, completed_at, progress, education_content:content_id(id, title, content_type, category, duration_mins, url)"
-    )
-    .eq("patient_id", patient.id)
-    .order("assigned_at", { ascending: false })) as {
-    data: AssignmentRow[] | null;
-    error: unknown;
-  };
+      if (!patient) { router.push("/onboarding/patient"); return; }
 
-  const items = assignments ?? [];
+      const { data: assignments } = (await supabase
+        .from("education_assignments")
+        .select(
+          "id, content_id, assigned_at, completed_at, progress, education_content:content_id(id, title, content_type, category, duration_mins, url)"
+        )
+        .eq("patient_id", patient.id)
+        .order("assigned_at", { ascending: false })) as {
+        data: AssignmentRow[] | null;
+        error: unknown;
+      };
+
+      setItems(assignments ?? []);
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  async function markComplete(assignmentId: string) {
+    setCompleting(assignmentId);
+    await supabase
+      .from("education_assignments")
+      .update({ completed_at: new Date().toISOString(), progress: 100 })
+      .eq("id", assignmentId);
+
+    setItems((prev) =>
+      prev.map((a) =>
+        a.id === assignmentId
+          ? { ...a, completed_at: new Date().toISOString(), progress: 100 }
+          : a
+      )
+    );
+    setCompleting(null);
+  }
+
   const todo = items.filter((a) => !a.completed_at);
   const done = items.filter((a) => !!a.completed_at);
+
+  if (loading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-2 border-nesema-sage/30 border-t-nesema-sage rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 md:p-8 max-w-3xl mx-auto">
@@ -83,15 +133,18 @@ export default async function LearnPage() {
               <div className="space-y-3">
                 {todo.map((a) => {
                   const c = a.education_content;
+                  const type = c?.content_type ?? "article";
                   return (
                     <div
                       key={a.id}
                       className="rounded-2xl bg-white border border-nesema-sage/20 p-4 flex items-start gap-3"
                     >
-                      <div className="w-9 h-9 rounded-xl bg-nesema-sage/10 flex items-center justify-center text-nesema-bark shrink-0">
-                        {TYPE_ICON[c?.content_type ?? "article"] ?? (
-                          <BookOpen size={16} />
-                        )}
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                          TYPE_COLOR[type] ?? "bg-nesema-sage/10 text-nesema-sage"
+                        }`}
+                      >
+                        {TYPE_ICON[type] ?? <BookOpen size={16} />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm text-nesema-t1">
@@ -117,16 +170,25 @@ export default async function LearnPage() {
                           </div>
                         )}
                       </div>
-                      {c?.url && (
-                        <a
-                          href={c.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-nesema-bark border border-nesema-sage/30 px-3 py-1.5 rounded-full shrink-0 self-start"
+                      <div className="flex items-center gap-2 shrink-0 self-start">
+                        {c?.url && (
+                          <a
+                            href={c.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-8 h-8 flex items-center justify-center border border-nesema-sage/30 rounded-lg text-nesema-bark hover:bg-nesema-sage/5"
+                          >
+                            <ExternalLink size={13} />
+                          </a>
+                        )}
+                        <button
+                          onClick={() => markComplete(a.id)}
+                          disabled={completing === a.id}
+                          className="text-xs text-nesema-bark border border-nesema-sage/30 px-3 py-1.5 rounded-full hover:bg-nesema-sage/5 transition-colors disabled:opacity-50 whitespace-nowrap"
                         >
-                          Open
-                        </a>
-                      )}
+                          {completing === a.id ? "Saving…" : "Mark done"}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -165,6 +227,16 @@ export default async function LearnPage() {
                           </p>
                         )}
                       </div>
+                      {c?.url && (
+                        <a
+                          href={c.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-7 h-7 flex items-center justify-center text-nesema-t3"
+                        >
+                          <ExternalLink size={13} />
+                        </a>
+                      )}
                     </div>
                   );
                 })}
