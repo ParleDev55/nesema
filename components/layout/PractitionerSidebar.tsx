@@ -21,18 +21,26 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
-const navItems = [
-  { href: "/practitioner/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/practitioner/patients", label: "Patients", icon: Users },
-  { href: "/practitioner/calendar", label: "Calendar", icon: Calendar },
-  { href: "/practitioner/toolkit", label: "Toolkit", icon: Briefcase },
-  { href: "/practitioner/documents", label: "Documents", icon: FileText },
-  { href: "/practitioner/education", label: "Education", icon: BookOpen },
-  { href: "/practitioner/payments", label: "Payments", icon: CreditCard },
-  { href: "/practitioner/messages", label: "Messages", icon: MessageSquare },
-  { href: "/practitioner/analytics", label: "Analytics", icon: BarChart2 },
-  { href: "/practitioner/notifications", label: "Notifications", icon: Bell },
-  { href: "/practitioner/settings", label: "Settings", icon: Settings },
+const NAV_GROUPS = [
+  [
+    { href: "/practitioner/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/practitioner/patients", label: "Patients", icon: Users },
+    { href: "/practitioner/calendar", label: "Calendar", icon: Calendar },
+  ],
+  [
+    { href: "/practitioner/toolkit", label: "Toolkit", icon: Briefcase },
+    { href: "/practitioner/documents", label: "Documents", icon: FileText },
+    { href: "/practitioner/education", label: "Education", icon: BookOpen },
+  ],
+  [
+    { href: "/practitioner/payments", label: "Payments", icon: CreditCard },
+    { href: "/practitioner/messages", label: "Messages", icon: MessageSquare },
+    { href: "/practitioner/analytics", label: "Analytics", icon: BarChart2 },
+  ],
+  [
+    { href: "/practitioner/notifications", label: "Notifications", icon: Bell },
+    { href: "/practitioner/settings", label: "Settings", icon: Settings },
+  ],
 ];
 
 interface PractitionerSidebarProps {
@@ -75,28 +83,37 @@ export function PractitionerSidebar({
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href || pathname.startsWith(href + "/");
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-nesema-sage text-white"
-                  : "text-white/55 hover:text-white hover:bg-white/8"
-              )}
-            >
-              <Icon
-                size={18}
-                className={cn(isActive ? "text-white" : "text-white/55")}
-              />
-              {label}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {NAV_GROUPS.map((group, gi) => (
+          <div key={gi}>
+            {gi > 0 && (
+              <div className="mx-1 my-2.5 border-t border-white/[0.08]" />
+            )}
+            <div className="space-y-0.5">
+              {group.map(({ href, label, icon: Icon }) => {
+                const isActive = pathname === href || pathname.startsWith(href + "/");
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-nesema-sage text-white"
+                        : "text-white/55 hover:text-white hover:bg-white/8"
+                    )}
+                  >
+                    <Icon
+                      size={18}
+                      className={cn(isActive ? "text-white" : "text-white/55")}
+                    />
+                    {label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* User footer */}
