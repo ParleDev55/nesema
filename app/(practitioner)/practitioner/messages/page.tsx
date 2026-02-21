@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { MessagesUI } from "@/components/shared/MessagesUI";
-import type { ConversationSummary } from "@/components/shared/MessagesUI";
+import type { ConversationSummary, PatientContact } from "@/components/shared/MessagesUI";
 
 export default async function PractitionerMessagesPage() {
   const supabase = createClient();
@@ -79,11 +79,54 @@ export default async function PractitionerMessagesPage() {
     }
   }
 
+  // Fetch this practitioner's patients (for compose modal)
+  const patients: PatientContact[] = [];
+
+  const { data: prac } = (await supabase
+    .from("practitioners")
+    .select("id")
+    .eq("profile_id", user.id)
+    .single()) as { data: { id: string } | null; error: unknown };
+
+  if (prac) {
+    const { data: pts } = (await supabase
+      .from("patients")
+      .select("id, profile_id")
+      .eq("practitioner_id", prac.id)) as {
+      data: { id: string; profile_id: string }[] | null; error: unknown;
+    };
+
+    const allPts = pts ?? [];
+    const profileIds = allPts.map((p) => p.profile_id);
+
+    if (profileIds.length > 0) {
+      const { data: profiles } = (await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .in("id", profileIds)) as {
+        data: { id: string; first_name: string | null; last_name: string | null }[] | null; error: unknown;
+      };
+
+      const pMap: Record<string, string> = {};
+      for (const pr of profiles ?? []) {
+        pMap[pr.id] = [pr.first_name, pr.last_name].filter(Boolean).join(" ") || "Patient";
+      }
+
+      for (const pt of allPts) {
+        patients.push({
+          profileId: pt.profile_id,
+          name: pMap[pt.profile_id] ?? "Patient",
+        });
+      }
+    }
+  }
+
   return (
     <div className="h-full flex flex-col">
       <MessagesUI
         currentUserId={user.id}
         initialConversations={conversations}
+        patients={patients}
       />
     </div>
   );

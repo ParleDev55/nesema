@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { BellOff, CheckCheck } from "lucide-react";
+import { BellOff, CheckCheck, Send, X, ChevronDown, Users, User } from "lucide-react";
 
 type NotifType = "all" | "unread" | "lab_result" | "appointment" | "message" | "payment";
 
@@ -16,6 +16,8 @@ type Notif = {
   link: string | null;
   created_at: string;
 };
+
+type Patient = { id: string; name: string };
 
 const TABS: { key: NotifType; label: string }[] = [
   { key: "all", label: "All" },
@@ -31,8 +33,16 @@ const TYPE_ICON: Record<string, string> = {
   message: "💬",
   payment: "💷",
   lab_result: "🧪",
+  general: "📢",
   default: "🔔",
 };
+
+const SEND_TYPE_OPTIONS = [
+  { value: "general", label: "📢 General announcement" },
+  { value: "appointment", label: "📅 Appointment reminder" },
+  { value: "message", label: "💬 Message" },
+  { value: "lab_result", label: "🧪 Lab result ready" },
+];
 
 function fmtRelative(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -54,6 +64,17 @@ export default function PractitionerNotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
 
+  // ── Send notification state
+  const [sendOpen, setSendOpen] = useState(false);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [sendTarget, setSendTarget] = useState<"all" | string>("all");
+  const [sendType, setSendType] = useState("general");
+  const [sendTitle, setSendTitle] = useState("");
+  const [sendBody, setSendBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendSuccess, setSendSuccess] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+
   const loadNotifs = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -67,8 +88,44 @@ export default function PractitionerNotificationsPage() {
     setLoading(false);
   }, [supabase]);
 
+  // Load patients for the send modal
+  const loadPatients = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: prac } = (await supabase
+      .from("practitioners")
+      .select("id")
+      .eq("profile_id", user.id)
+      .single()) as { data: { id: string } | null; error: unknown };
+    if (!prac) return;
+
+    const { data: pts } = (await supabase
+      .from("patients")
+      .select("id, profile_id")
+      .eq("practitioner_id", prac.id)) as {
+      data: { id: string; profile_id: string }[] | null; error: unknown;
+    };
+    if (!pts || pts.length === 0) return;
+
+    const profileIds = pts.map((p) => p.profile_id);
+    const { data: profiles } = (await supabase
+      .from("profiles")
+      .select("id, first_name, last_name")
+      .in("id", profileIds)) as {
+      data: { id: string; first_name: string | null; last_name: string | null }[] | null; error: unknown;
+    };
+
+    const pMap: Record<string, string> = {};
+    for (const pr of profiles ?? []) {
+      pMap[pr.id] = [pr.first_name, pr.last_name].filter(Boolean).join(" ") || "Patient";
+    }
+    setPatients(pts.map((p) => ({ id: p.id, name: pMap[p.profile_id] ?? "Patient" })));
+  }, [supabase]);
+
   useEffect(() => {
     loadNotifs();
+    loadPatients();
 
     // Realtime subscription
     let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -90,7 +147,7 @@ export default function PractitionerNotificationsPage() {
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, [loadNotifs, supabase]);
+  }, [loadNotifs, loadPatients, supabase]);
 
   async function markAllRead() {
     setMarkingAll(true);
@@ -111,6 +168,46 @@ export default function PractitionerNotificationsPage() {
       setNotifs((prev) => prev.map((n) => n.id === notif.id ? { ...n, read: true } : n));
     }
     if (notif.link) router.push(notif.link);
+  }
+
+  function openSend() {
+    setSendOpen(true);
+    setSendTarget("all");
+    setSendType("general");
+    setSendTitle("");
+    setSendBody("");
+    setSendError(null);
+    setSendSuccess(false);
+  }
+
+  async function handleSend() {
+    if (!sendTitle.trim()) { setSendError("Please enter a notification title."); return; }
+    setSending(true);
+    setSendError(null);
+
+    try {
+      const res = await fetch("/api/notifications/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target: sendTarget,
+          type: sendType,
+          title: sendTitle.trim(),
+          body: sendBody.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSendError(data.error ?? "Something went wrong.");
+      } else {
+        setSendSuccess(true);
+        setTimeout(() => { setSendOpen(false); setSendSuccess(false); }, 1500);
+      }
+    } catch {
+      setSendError("Network error — please try again.");
+    } finally {
+      setSending(false);
+    }
   }
 
   const filtered = notifs.filter((n) => {
@@ -139,16 +236,25 @@ export default function PractitionerNotificationsPage() {
             <p className="text-xs text-[#9C9087] mt-0.5">{unreadCount} unread</p>
           )}
         </div>
-        {unreadCount > 0 && (
+        <div className="flex items-center gap-2">
+          {unreadCount > 0 && (
+            <button
+              onClick={markAllRead}
+              disabled={markingAll}
+              className="flex items-center gap-1.5 text-xs text-[#4E7A5F] border border-[#4E7A5F]/30 px-3 py-1.5 rounded-full hover:bg-[#EBF2EE] transition-colors disabled:opacity-50"
+            >
+              <CheckCheck size={13} />
+              Mark all read
+            </button>
+          )}
           <button
-            onClick={markAllRead}
-            disabled={markingAll}
-            className="flex items-center gap-1.5 text-xs text-[#4E7A5F] border border-[#4E7A5F]/30 px-3 py-1.5 rounded-full hover:bg-[#EBF2EE] transition-colors disabled:opacity-50"
+            onClick={openSend}
+            className="flex items-center gap-1.5 text-xs font-medium text-white bg-[#2E2620] px-3 py-1.5 rounded-full hover:bg-[#4E3D30] transition-colors"
           >
-            <CheckCheck size={13} />
-            Mark all read
+            <Send size={13} />
+            Send
           </button>
-        )}
+        </div>
       </div>
 
       {/* Filter tabs */}
@@ -227,6 +333,177 @@ export default function PractitionerNotificationsPage() {
               </div>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* ── Send Notification Modal ──────────────────────────────────────────── */}
+      {sendOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          onClick={() => setSendOpen(false)}
+        >
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div
+            className="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#E6E0D8]">
+              <h2 className="font-semibold text-[#1E1A16]">Send Notification</h2>
+              <button onClick={() => setSendOpen(false)} className="text-[#9C9087] hover:text-[#1E1A16] transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            {sendSuccess ? (
+              <div className="px-6 py-10 text-center">
+                <div className="text-4xl mb-3">✅</div>
+                <p className="font-medium text-[#1E1A16]">Notification sent!</p>
+                <p className="text-sm text-[#9C9087] mt-1">
+                  {sendTarget === "all"
+                    ? `Sent to all ${patients.length} patient${patients.length !== 1 ? "s" : ""}`
+                    : `Sent to ${patients.find((p) => p.id === sendTarget)?.name ?? "patient"}`}
+                </p>
+              </div>
+            ) : (
+              <div className="p-6 space-y-4">
+                {/* Target */}
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#5C5248] mb-2 block">
+                    Send to
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <button
+                      onClick={() => setSendTarget("all")}
+                      className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
+                        sendTarget === "all"
+                          ? "border-[#4E7A5F] bg-[#EBF2EE] text-[#2E5C45]"
+                          : "border-[#E6E0D8] bg-[#FDFCFA] text-[#5C5248] hover:bg-[#F6F3EE]"
+                      }`}
+                    >
+                      <Users size={15} />
+                      All patients
+                      {patients.length > 0 && (
+                        <span className="ml-auto text-[11px] text-[#9C9087]">{patients.length}</span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setSendTarget(sendTarget === "all" ? (patients[0]?.id ?? "all") : sendTarget)}
+                      className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
+                        sendTarget !== "all"
+                          ? "border-[#4E7A5F] bg-[#EBF2EE] text-[#2E5C45]"
+                          : "border-[#E6E0D8] bg-[#FDFCFA] text-[#5C5248] hover:bg-[#F6F3EE]"
+                      }`}
+                    >
+                      <User size={15} />
+                      Specific patient
+                    </button>
+                  </div>
+
+                  {/* Patient picker */}
+                  {sendTarget !== "all" && (
+                    <div className="relative">
+                      <select
+                        value={sendTarget}
+                        onChange={(e) => setSendTarget(e.target.value)}
+                        className="w-full appearance-none text-sm border border-[#E6E0D8] rounded-xl px-4 py-2.5 pr-9 focus:outline-none focus:ring-2 focus:ring-[#4E7A5F]/25 bg-white"
+                      >
+                        {patients.length === 0 ? (
+                          <option value="">No patients found</option>
+                        ) : (
+                          patients.map((p) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))
+                        )}
+                      </select>
+                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9C9087] pointer-events-none" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Type */}
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#5C5248] mb-2 block">
+                    Type
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={sendType}
+                      onChange={(e) => setSendType(e.target.value)}
+                      className="w-full appearance-none text-sm border border-[#E6E0D8] rounded-xl px-4 py-2.5 pr-9 focus:outline-none focus:ring-2 focus:ring-[#4E7A5F]/25 bg-white"
+                    >
+                      {SEND_TYPE_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9C9087] pointer-events-none" />
+                  </div>
+                </div>
+
+                {/* Title */}
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#5C5248] mb-2 block">
+                    Title
+                  </label>
+                  <input
+                    value={sendTitle}
+                    onChange={(e) => setSendTitle(e.target.value)}
+                    placeholder="e.g. Your lab results are ready"
+                    className="w-full text-sm border border-[#E6E0D8] rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#4E7A5F]/25 bg-white"
+                  />
+                </div>
+
+                {/* Body */}
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#5C5248] mb-2 block">
+                    Message <span className="text-[#9C9087] normal-case font-normal">(optional)</span>
+                  </label>
+                  <textarea
+                    value={sendBody}
+                    onChange={(e) => setSendBody(e.target.value)}
+                    placeholder="Add more detail here…"
+                    rows={3}
+                    className="w-full text-sm border border-[#E6E0D8] rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#4E7A5F]/25 bg-white resize-none"
+                  />
+                </div>
+
+                {sendError && (
+                  <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">
+                    {sendError}
+                  </p>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-1">
+                  <button
+                    onClick={() => setSendOpen(false)}
+                    className="flex-1 py-2.5 rounded-full border border-[#E6E0D8] text-sm text-[#5C5248] hover:bg-[#F6F3EE] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSend}
+                    disabled={sending || !sendTitle.trim() || (sendTarget !== "all" && patients.length === 0)}
+                    className="flex-1 py-2.5 rounded-full bg-[#2E2620] text-white text-sm font-medium hover:bg-[#4E3D30] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {sending ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                        Sending…
+                      </>
+                    ) : (
+                      <>
+                        <Send size={13} />
+                        {sendTarget === "all"
+                          ? `Send to all${patients.length > 0 ? ` (${patients.length})` : ""}`
+                          : "Send"}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Send, SquarePen, X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface ConversationSummary {
@@ -22,9 +22,15 @@ export interface MessageRow {
   created_at: string;
 }
 
+export interface PatientContact {
+  profileId: string;
+  name: string;
+}
+
 interface Props {
   currentUserId: string;
   initialConversations: ConversationSummary[];
+  patients?: PatientContact[];
 }
 
 function formatDate(iso: string) {
@@ -51,7 +57,7 @@ function initials(name: string) {
     .slice(0, 2);
 }
 
-export function MessagesUI({ currentUserId, initialConversations }: Props) {
+export function MessagesUI({ currentUserId, initialConversations, patients = [] }: Props) {
   const supabase = useRef(createClient()).current;
 
   const [conversations, setConversations] =
@@ -61,6 +67,10 @@ export function MessagesUI({ currentUserId, initialConversations }: Props) {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // ── Compose state
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeSearch, setComposeSearch] = useState("");
 
   // Load thread when conversation selected
   useEffect(() => {
@@ -210,17 +220,61 @@ export function MessagesUI({ currentUserId, initialConversations }: Props) {
       setMessages((prev) =>
         prev.map((m) => (m.id === optimistic.id ? (data as MessageRow) : m))
       );
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.partnerId === selectedId
-            ? { ...c, lastMessage: body, lastAt: optimistic.created_at }
-            : c
-        )
-      );
+      setConversations((prev) => {
+        const existing = prev.find((c) => c.partnerId === selectedId);
+        if (existing) {
+          return prev.map((c) =>
+            c.partnerId === selectedId
+              ? { ...c, lastMessage: body, lastAt: optimistic.created_at }
+              : c
+          );
+        }
+        // New conversation (first message sent)
+        const patient = patients.find((p) => p.profileId === selectedId);
+        return [
+          {
+            partnerId: selectedId,
+            partnerName: patient?.name ?? "Patient",
+            lastMessage: body,
+            lastAt: optimistic.created_at,
+            unread: 0,
+          },
+          ...prev,
+        ];
+      });
     }
 
     setSending(false);
   }
+
+  function openCompose(profileId: string, name: string) {
+    setComposeOpen(false);
+    setComposeSearch("");
+    // If conversation already exists, just open it
+    const existing = conversations.find((c) => c.partnerId === profileId);
+    if (!existing) {
+      // Add a placeholder so the thread header shows the name
+      setConversations((prev) => {
+        if (prev.find((c) => c.partnerId === profileId)) return prev;
+        return [
+          {
+            partnerId: profileId,
+            partnerName: name,
+            lastMessage: "",
+            lastAt: new Date().toISOString(),
+            unread: 0,
+          },
+          ...prev,
+        ];
+      });
+    }
+    setSelectedId(profileId);
+  }
+
+  // Filtered patients for compose search
+  const filteredPatients = patients.filter((p) =>
+    p.name.toLowerCase().includes(composeSearch.toLowerCase())
+  );
 
   // Group messages by date
   const grouped: { date: string; msgs: MessageRow[] }[] = [];
@@ -248,17 +302,30 @@ export function MessagesUI({ currentUserId, initialConversations }: Props) {
           threadOpen && "hidden lg:flex"
         )}
       >
-        <div className="px-5 py-4 border-b border-nesema-t1/10">
+        <div className="px-5 py-4 border-b border-nesema-t1/10 flex items-center justify-between">
           <h1 className="font-serif text-2xl text-nesema-t1">Messages</h1>
+          {patients.length > 0 && (
+            <button
+              onClick={() => { setComposeOpen(true); setComposeSearch(""); }}
+              title="New message"
+              className="w-8 h-8 rounded-full bg-[#2E2620] text-white flex items-center justify-center hover:bg-[#4E3D30] transition-colors"
+            >
+              <SquarePen size={14} />
+            </button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto divide-y divide-nesema-t1/5">
           {conversations.length === 0 && (
             <div className="p-6 text-center text-nesema-t3 text-sm">
-              No conversations yet.
+              {patients.length > 0
+                ? "No conversations yet. Click the compose button to start one."
+                : "No conversations yet."}
             </div>
           )}
-          {conversations.map((conv) => (
+          {conversations
+            .filter((c) => c.lastMessage !== "" || c.partnerId === selectedId)
+            .map((conv) => (
             <button
               key={conv.partnerId}
               onClick={() => setSelectedId(conv.partnerId)}
@@ -279,15 +346,17 @@ export function MessagesUI({ currentUserId, initialConversations }: Props) {
                   <span className="text-sm font-medium text-nesema-t1 truncate">
                     {conv.partnerName}
                   </span>
-                  <span className="text-[11px] text-nesema-t3 ml-2 flex-shrink-0">
-                    {formatDate(conv.lastAt) === "Today"
-                      ? formatTime(conv.lastAt)
-                      : formatDate(conv.lastAt)}
-                  </span>
+                  {conv.lastMessage && (
+                    <span className="text-[11px] text-nesema-t3 ml-2 flex-shrink-0">
+                      {formatDate(conv.lastAt) === "Today"
+                        ? formatTime(conv.lastAt)
+                        : formatDate(conv.lastAt)}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center justify-between mt-0.5">
                   <span className="text-xs text-nesema-t3 truncate">
-                    {conv.lastMessage}
+                    {conv.lastMessage || "New conversation — say hello!"}
                   </span>
                   {conv.unread > 0 && (
                     <span className="ml-2 flex-shrink-0 w-5 h-5 rounded-full bg-nesema-sage flex items-center justify-center text-[10px] font-bold text-white">
@@ -312,6 +381,14 @@ export function MessagesUI({ currentUserId, initialConversations }: Props) {
           <div className="flex-1 flex flex-col items-center justify-center text-nesema-t3 gap-2">
             <span className="text-4xl">✉️</span>
             <p className="text-sm">Select a conversation to start messaging</p>
+            {patients.length > 0 && (
+              <button
+                onClick={() => { setComposeOpen(true); setComposeSearch(""); }}
+                className="mt-2 px-4 py-2 bg-[#2E2620] text-white text-xs font-medium rounded-full hover:bg-[#4E3D30] transition-colors"
+              >
+                New message
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -335,6 +412,12 @@ export function MessagesUI({ currentUserId, initialConversations }: Props) {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+              {messages.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-full text-nesema-t3 gap-2 py-16">
+                  <span className="text-3xl">👋</span>
+                  <p className="text-sm">Send a message to start the conversation</p>
+                </div>
+              )}
               {grouped.map(({ date, msgs }) => (
                 <div key={date}>
                   {/* Date label */}
@@ -417,6 +500,57 @@ export function MessagesUI({ currentUserId, initialConversations }: Props) {
           </>
         )}
       </div>
+
+      {/* ── Compose modal ──────────────────────────────────────────────── */}
+      {composeOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setComposeOpen(false)}>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div
+            className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#E6E0D8]">
+              <h2 className="font-semibold text-[#1E1A16]">New Message</h2>
+              <button onClick={() => setComposeOpen(false)} className="text-[#9C9087] hover:text-[#1E1A16] transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Search */}
+            <div className="px-4 pt-3 pb-2">
+              <div className="relative">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9C9087]" />
+                <input
+                  value={composeSearch}
+                  onChange={(e) => setComposeSearch(e.target.value)}
+                  placeholder="Search patients…"
+                  autoFocus
+                  className="w-full pl-8 pr-3 py-2 text-sm rounded-xl border border-[#E6E0D8] bg-[#F9F7F4] focus:outline-none focus:ring-2 focus:ring-[#4E7A5F]/25"
+                />
+              </div>
+            </div>
+
+            <div className="max-h-64 overflow-y-auto divide-y divide-[#E6E0D8]/60 pb-2">
+              {filteredPatients.length === 0 ? (
+                <p className="px-5 py-6 text-sm text-center text-[#9C9087]">No patients found</p>
+              ) : (
+                filteredPatients.map((p) => (
+                  <button
+                    key={p.profileId}
+                    onClick={() => openCompose(p.profileId, p.name)}
+                    className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#EBF2EE] transition-colors text-left"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-[#4E7A5F]/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-semibold text-[#4E7A5F]">{initials(p.name)}</span>
+                    </div>
+                    <span className="text-sm font-medium text-[#1E1A16]">{p.name}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
