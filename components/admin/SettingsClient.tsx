@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { GhlSettingsTab } from "@/components/admin/GhlSettingsTab";
+import { PractitionerTypesTab } from "@/components/admin/PractitionerTypesTab";
+import { PromoCodesTab } from "@/components/admin/PromoCodesTab";
 
 interface PlatformSettings {
   id: string;
@@ -41,7 +43,7 @@ function Toggle({
   );
 }
 
-type Tab = "platform" | "ghl";
+type Tab = "platform" | "ghl" | "types" | "promo";
 
 export function SettingsClient({
   settings,
@@ -131,6 +133,8 @@ export function SettingsClient({
   const tabs: { id: Tab; label: string }[] = [
     { id: "platform", label: "Platform settings" },
     { id: "ghl", label: "GHL Integration" },
+    { id: "types", label: "Practitioner types" },
+    { id: "promo", label: "Promo codes" },
   ];
 
   return (
@@ -234,6 +238,12 @@ export function SettingsClient({
           />
         </div>
       )}
+
+      {/* Practitioner types tab */}
+      {activeTab === "types" && <PractitionerTypesTab />}
+
+      {/* Promo codes tab */}
+      {activeTab === "promo" && <PromoCodesTab />}
     </div>
   );
 }

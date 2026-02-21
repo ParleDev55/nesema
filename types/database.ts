@@ -595,6 +595,132 @@ export interface Database {
         };
         Relationships: [];
       };
+      practitioner_types: {
+        Row: {
+          id: string;
+          name: string;
+          is_active: boolean;
+          sort_order: number;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          is_active?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          is_active?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Relationships: [];
+      };
+      discount_codes: {
+        Row: {
+          id: string;
+          code: string;
+          description: string | null;
+          discount_type: "percentage" | "fixed";
+          discount_value: number;
+          applies_to: "all" | "initial" | "followup";
+          max_uses: number | null;
+          uses_count: number;
+          valid_from: string | null;
+          valid_until: string | null;
+          is_active: boolean;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          description?: string | null;
+          discount_type: "percentage" | "fixed";
+          discount_value: number;
+          applies_to?: "all" | "initial" | "followup";
+          max_uses?: number | null;
+          uses_count?: number;
+          valid_from?: string | null;
+          valid_until?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          code?: string;
+          description?: string | null;
+          discount_type?: "percentage" | "fixed";
+          discount_value?: number;
+          applies_to?: "all" | "initial" | "followup";
+          max_uses?: number | null;
+          uses_count?: number;
+          valid_from?: string | null;
+          valid_until?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Relationships: [];
+      };
+      referral_codes: {
+        Row: {
+          id: string;
+          code: string;
+          description: string | null;
+          referrer_reward_type: "percentage" | "fixed" | "none";
+          referrer_reward_value: number;
+          referee_reward_type: "percentage" | "fixed" | "none";
+          referee_reward_value: number;
+          max_uses: number | null;
+          uses_count: number;
+          valid_from: string | null;
+          valid_until: string | null;
+          is_active: boolean;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          description?: string | null;
+          referrer_reward_type?: "percentage" | "fixed" | "none";
+          referrer_reward_value?: number;
+          referee_reward_type?: "percentage" | "fixed" | "none";
+          referee_reward_value?: number;
+          max_uses?: number | null;
+          uses_count?: number;
+          valid_from?: string | null;
+          valid_until?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          code?: string;
+          description?: string | null;
+          referrer_reward_type?: "percentage" | "fixed" | "none";
+          referrer_reward_value?: number;
+          referee_reward_type?: "percentage" | "fixed" | "none";
+          referee_reward_value?: number;
+          max_uses?: number | null;
+          uses_count?: number;
+          valid_from?: string | null;
+          valid_until?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

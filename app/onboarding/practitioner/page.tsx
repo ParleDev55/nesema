@@ -14,7 +14,7 @@ const STEPS = [
   { number: 4, label: "Availability" },
   { number: 5, label: "Review & go live" },
 ];
-const DISCIPLINES = ["Functional Nutritionist","Physiotherapist","Sleep Coach","Personal Trainer","Naturopath","Psychotherapist","Osteopath","Acupuncturist","Health Coach"];
+const FALLBACK_DISCIPLINES = ["Functional Nutritionist","Physiotherapist","Sleep Coach","Personal Trainer","Naturopath","Psychotherapist","Osteopath","Acupuncturist","Health Coach"];
 const YEARS_OPTIONS = ["Less than 1","1–2","3–5","6–10","10+"];
 const SESSION_LENGTHS = [30, 45, 60, 90, 120];
 const BUFFER_MINS = [0, 5, 10, 15, 30];
@@ -120,10 +120,10 @@ function Step1({ firstName, setFirstName, lastName, setLastName, email, onNext, 
 }
 
 // ── Step 2: Credentials ───────────────────────────────────────
-function Step2({ discipline, setDiscipline, registrationBody, setRegistrationBody, registrationNumber, setRegistrationNumber, yearsOfPractice, setYearsOfPractice, proofFileName, setProofFileName, onNext, saving }: {
+function Step2({ discipline, setDiscipline, registrationBody, setRegistrationBody, registrationNumber, setRegistrationNumber, yearsOfPractice, setYearsOfPractice, proofFileName, setProofFileName, onNext, saving, disciplines }: {
   discipline: string; setDiscipline: (v: string) => void; registrationBody: string; setRegistrationBody: (v: string) => void;
   registrationNumber: string; setRegistrationNumber: (v: string) => void; yearsOfPractice: string; setYearsOfPractice: (v: string) => void;
-  proofFileName: string; setProofFileName: (v: string) => void; onNext: () => void; saving: boolean;
+  proofFileName: string; setProofFileName: (v: string) => void; onNext: () => void; saving: boolean; disciplines: string[];
 }) {
   const ok = discipline && registrationBody.trim() && registrationNumber.trim() && yearsOfPractice;
   return (
@@ -139,7 +139,7 @@ function Step2({ discipline, setDiscipline, registrationBody, setRegistrationBod
           <SelectWrap>
             <select className={sCls} value={discipline} onChange={e => setDiscipline(e.target.value)}>
               <option value="">Select your discipline…</option>
-              {DISCIPLINES.map(d => <option key={d} value={d}>{d}</option>)}
+              {disciplines.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
           </SelectWrap>
         </div>
@@ -350,6 +350,7 @@ export default function PractitionerOnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [pracDbId, setPracDbId] = useState<string | null>(null);
+  const [disciplines, setDisciplines] = useState<string[]>(FALLBACK_DISCIPLINES);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -377,6 +378,18 @@ export default function PractitionerOnboardingPage() {
 
   const load = useCallback(async () => {
     const sb = createClient();
+
+    // Load active practitioner types from DB (falls back to hardcoded list on error)
+    const { data: typeRows } = await sb
+      .from("practitioner_types")
+      .select("name")
+      .eq("is_active", true)
+      .order("sort_order")
+      .order("name");
+    if (typeRows && typeRows.length > 0) {
+      setDisciplines(typeRows.map((r: { name: string }) => r.name));
+    }
+
     const { data: { user } } = await sb.auth.getUser();
     if (!user) { router.push("/sign-in"); return; }
     setUserId(user.id);
@@ -455,7 +468,7 @@ export default function PractitionerOnboardingPage() {
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-xl mx-auto px-8 py-16">
           {step === 1 && <Step1 firstName={firstName} setFirstName={setFirstName} lastName={lastName} setLastName={setLastName} email={email} onNext={step1Next} saving={saving} />}
-          {step === 2 && <Step2 discipline={discipline} setDiscipline={setDiscipline} registrationBody={registrationBody} setRegistrationBody={setRegistrationBody} registrationNumber={registrationNumber} setRegistrationNumber={setRegistrationNumber} yearsOfPractice={yearsOfPractice} setYearsOfPractice={setYearsOfPractice} proofFileName={proofFileName} setProofFileName={setProofFileName} onNext={step2Next} saving={saving} />}
+          {step === 2 && <Step2 discipline={discipline} setDiscipline={setDiscipline} registrationBody={registrationBody} setRegistrationBody={setRegistrationBody} registrationNumber={registrationNumber} setRegistrationNumber={setRegistrationNumber} yearsOfPractice={yearsOfPractice} setYearsOfPractice={setYearsOfPractice} proofFileName={proofFileName} setProofFileName={setProofFileName} onNext={step2Next} saving={saving} disciplines={disciplines} />}
           {step === 3 && <Step3 practiceName={practiceName} setPracticeName={setPracticeName} bio={bio} setBio={setBio} sessionLengthMins={sessionLengthMins} setSessionLengthMins={setSessionLengthMins} bufferMins={bufferMins} setBufferMins={setBufferMins} allowsSelfBooking={allowsSelfBooking} setAllowsSelfBooking={setAllowsSelfBooking} initialFee={initialFee} setInitialFee={setInitialFee} followupFee={followupFee} setFollowupFee={setFollowupFee} onNext={step3Next} saving={saving} />}
           {step === 4 && <Step4 availability={availability} setAvailability={setAvailability} bookingNoticeHours={bookingNoticeHours} setBookingNoticeHours={setBookingNoticeHours} cancellationHours={cancellationHours} setCancellationHours={setCancellationHours} bookingSlug={bookingSlug} setBookingSlug={setBookingSlug} onNext={step4Next} saving={saving} />}
           {step === 5 && <Step5 firstName={firstName} lastName={lastName} email={email} discipline={discipline} registrationBody={registrationBody} registrationNumber={registrationNumber} yearsOfPractice={yearsOfPractice} practiceName={practiceName} bio={bio} sessionLengthMins={sessionLengthMins} bufferMins={bufferMins} allowsSelfBooking={allowsSelfBooking} initialFee={initialFee} followupFee={followupFee} availability={availability} bookingSlug={bookingSlug} cancellationHours={cancellationHours} onGoLive={goLive} saving={saving} />}
